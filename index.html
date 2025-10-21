@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>QRターミナル（MVP-0）</title>
+    <style>
+      /* 簡易ダーク基調（後でTailwind等に差し替え可） */
+      :root { color-scheme: light dark; }
+      body { margin: 0; font-family: system-ui, sans-serif; background:#0b0b0b; color:#f2f2f2; }
+      header { padding: 16px; font-weight: 700; font-size: 18px; border-bottom: 1px solid #333; }
+      main { padding: 16px; }
+      .card {
+        border: 1px solid #333; border-radius: 14px; padding: 16px; margin: 12px 0;
+        box-shadow: 0 4px 14px rgba(0,0,0,.2);
+      }
+      a.button {
+        display:inline-block; padding:10px 14px; border-radius:999px; border:1px solid #444; text-decoration:none; color:inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <header>QRコード多用途サイト｜ターミナル（MVP-0）</header>
+    <main>
+      <div class="card">
+        <p>ここは文化祭用のミニゲームハブ「ターミナル」の最小土台です。</p>
+        <p>次回：<code>games.json</code>を読み込んでカード一覧 → iframe起動（MVP-1）</p>
+        <a class="button" href="#" id="ping">動作チェック</a>
+      </div>
+      <div id="log" class="card" style="white-space:pre-wrap"></div>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
