@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<title>Ping Demo</title>
+<style>body{font-family:system-ui;margin:16px}</style>
+<h1>Ping Demo</h1>
+<p>親ページへ <code>postMessage</code> を送るテストです。</p>
+<button id="score">スコア送信</button>
+<button id="exit">終了メッセージ送信</button>
+<script>
+  document.getElementById('score').onclick = () => {
+    parent.postMessage({ type: 'score', value: Math.floor(Math.random()*101) }, '*');
+  };
+  document.getElementById('exit').onclick = () => {
+    parent.postMessage({ type: 'exit' }, '*');
+  };
+</script>
