@@ -85,7 +85,8 @@ function clamp(v, min, max){ return Math.min(max, Math.max(min, v)); }
 
 // ====== ゲーム一覧（games.json → カード生成） ======
 async function loadAndRenderGames(){
-  const url = await fetch(`${base}games.json?ts=${Date.now()}`);
+  // public/games.json を取得（baseは /feshp/ 相当）
+  const url = `${base}games.json?ts=${Date.now()}`;
   const res = await fetch(url);
   if(!res.ok) throw new Error(`games.jsonを取得できません (${res.status})`);
   const data = await res.json();
