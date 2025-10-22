@@ -4,32 +4,70 @@
     <meta charset="UTF-8" />
     <meta name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>QRターミナル（MVP-0）</title>
+    <title>QRコード多用途サイト｜ターミナル（MVP-1）</title>
     <style>
-      /* 簡易ダーク基調（後でTailwind等に差し替え可） */
       :root { color-scheme: light dark; }
-      body { margin: 0; font-family: system-ui, sans-serif; background:#0b0b0b; color:#f2f2f2; }
+      body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#0b0b0b; color:#f2f2f2; }
       header { padding: 16px; font-weight: 700; font-size: 18px; border-bottom: 1px solid #333; }
-      main { padding: 16px; }
+      main { padding: 16px; display: grid; gap: 16px; }
       .card {
-        border: 1px solid #333; border-radius: 14px; padding: 16px; margin: 12px 0;
-        box-shadow: 0 4px 14px rgba(0,0,0,.2);
+        border: 1px solid #333; border-radius: 14px; padding: 16px;
+        box-shadow: 0 4px 14px rgba(0,0,0,.2); background: #0d0d0d;
       }
-      a.button {
-        display:inline-block; padding:10px 14px; border-radius:999px; border:1px solid #444; text-decoration:none; color:inherit;
-      }
+      .grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); }
+      .card h3{ margin:0 0 6px; font-size:16px }
+      .button{ display:inline-block; padding:8px 12px; border-radius:999px; border:1px solid #444; background:transparent; color:inherit; cursor:pointer; }
+      .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      .muted { opacity:.8; font-size:14px }
+      .player { position:fixed; inset:0; background:#000; display:flex; flex-direction:column; }
+      .player.hidden{ display:none; }
+      .player-bar{ display:flex; align-items:center; gap:12px; padding:10px; border-bottom:1px solid #222; }
+      #gameFrame{ flex:1; width:100%; border:0; }
+      code { background:#121212; border:1px solid #222; padding:2px 6px; border-radius:8px; }
     </style>
   </head>
   <body>
-    <header>QRコード多用途サイト｜ターミナル（MVP-0）</header>
+    <header>QRコード多用途サイト｜ターミナル</header>
+
     <main>
+      <!-- 概要 -->
       <div class="card">
-        <p>ここは文化祭用のミニゲームハブ「ターミナル」の最小土台です。</p>
-        <p>次回：<code>games.json</code>を読み込んでカード一覧 → iframe起動（MVP-1）</p>
-        <a class="button" href="#" id="ping">動作チェック</a>
+        <p>ここは文化祭用ミニゲームハブ「ターミナル」のMVP版です。</p>
+        <ul class="muted">
+          <li>games.json → カード一覧 → クリックで <code>iframe</code> 起動</li>
+          <li>postMessage（score/exit）受信に対応</li>
+          <li><b>デバッグ用カウンタ</b>：同一端末で閉じても値を自動保存</li>
+        </ul>
       </div>
-      <div id="log" class="card" style="white-space:pre-wrap"></div>
+
+      <!-- デバッグ：自動保存カウンタ -->
+      <section class="card" id="debugCounterCard">
+        <h3>デバッグカウンタ（自動保存）</h3>
+        <p class="muted">このカウンタは <code>localStorage</code> に保存され、同じ端末・同じブラウザではページを閉じても値が保持されます。</p>
+        <div class="row">
+          <span>Count: <b id="counterValue">0</b></span>
+          <button id="incBtn" class="button">＋1</button>
+          <button id="resetBtn" class="button" title="開発時のみ利用想定">リセット（0に戻す）</button>
+        </div>
+      </section>
+
+      <!-- ゲーム一覧 -->
+      <section class="card">
+        <h3>ゲーム一覧</h3>
+        <div id="game-list" class="grid"></div>
+      </section>
+
+      <!-- プレイヤー(iframe) -->
+      <div id="player" class="player hidden" aria-hidden="true">
+        <div class="player-bar">
+          <button id="closeBtn" class="button">閉じる</button>
+          <span id="playerInfo"></span>
+        </div>
+        <iframe id="gameFrame" title="game" allow="autoplay" referrerpolicy="no-referrer"></iframe>
+      </div>
     </main>
-    <script type="module" src="/src/main.js"></script>
+
+    <!-- 相対パスにすること（Pages対応） -->
+    <script type="module" src="./src/main.js"></script>
   </body>
 </html>

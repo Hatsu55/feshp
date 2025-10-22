@@ -1,0 +1,16 @@
+{
+  "games": [
+    {
+      "id": "ping",
+      "title": "Ping Demo",
+      "desc": "postMessageとiframeの動作テスト",
+      "path": "games/ping/index.html"
+    },
+    {
+      "id": "hello",
+      "title": "Hello Frame",
+      "desc": "単純な表示だけのサンプル",
+      "path": "games/hello/index.html"
+    }
+  ]
+}
