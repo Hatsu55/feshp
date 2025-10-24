@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>QRコード多用途サイト｜ターミナル（MVP-2）</title>
+    <title>QRコード多用途サイト｜ターミナル（改良版）</title>
     <style>
       :root { color-scheme: light dark; }
       body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#0b0b0b; color:#f2f2f2; }
@@ -14,32 +14,22 @@
         border: 1px solid #333; border-radius: 14px; padding: 16px;
         box-shadow: 0 4px 14px rgba(0,0,0,.2); background: #0d0d0d;
       }
-      .grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); }
-      .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-      .muted { opacity:.8; font-size:14px }
       .button{ display:inline-block; padding:8px 12px; border-radius:999px; border:1px solid #444; background:transparent; color:inherit; cursor:pointer; }
       .button.primary{ border-color:#3a7; }
-      .pill{ display:inline-block; padding:4px 10px; border-radius:999px; border:1px solid #444; font-size:12px; }
+      .muted { opacity:.8; font-size:14px }
+      .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
 
       /* スタンプ */
       .stamps{ display:grid; gap:12px; grid-template-columns: repeat(3, minmax(0,1fr)); }
-      .stamp{
-        border:1px dashed #444; border-radius:16px; min-height:84px; display:flex; align-items:center; justify-content:center;
-        background:#0b0b0b;
-      }
-      .stamp .label{ font-weight:700; opacity:.7 }
-      .stamp.got{ border-style:solid; color:#000; }
+      .stamp{ border:1px dashed #444; border-radius:16px; min-height:84px; display:flex; align-items:center; justify-content:center; background:#0b0b0b; }
+      .stamp.got{ color:#000; border-style:solid; }
       .stamp.got .label{ opacity:1 }
-      .toast{
-        position:fixed; left:50%; bottom:20px; transform:translateX(-50%);
-        background:#0f0; color:#000; font-weight:700; padding:10px 16px; border-radius:999px; display:none;
-      }
+      .label{ font-weight:700; opacity:.7 }
 
-      /* プレイヤー(iframe) */
-      .player { position:fixed; inset:0; background:#000; display:flex; flex-direction:column; }
-      .player.hidden{ display:none; }
-      .player-bar{ display:flex; align-items:center; gap:12px; padding:10px; border-bottom:1px solid #222; }
-      #gameFrame{ flex:1; width:100%; border:0; }
+      .toast{
+        position:fixed; left:50%; bottom:40px; transform:translateX(-50%);
+        background:#0f0; color:#000; font-weight:700; padding:10px 16px; border-radius:999px; display:none; z-index:2000;
+      }
 
       /* スキャナ */
       .scanner {
@@ -48,93 +38,57 @@
       }
       .scanner.active{ display:block; }
       .scanner video{ width:100%; max-height:60vh; background:#000; border-radius:12px; }
-      .scanner .bar{ display:flex; gap:8px; margin-top:10px; }
-      .scanner .hint{ font-size:12px; opacity:.8; margin-top:6px; }
-      canvas#scanCanvas{ display:none; } /* デコード用の裏キャンバス */
-      .qr-grid{ display:grid; gap:12px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
-      .qr-box{ border:1px solid #333; border-radius:12px; padding:10px; text-align:center; background:#0b0b0b; }
+      canvas#scanCanvas{ display:none; }
+
+      .qr-grid{ display:grid; gap:16px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+      .qr-box{ border:1px solid #333; border-radius:12px; padding:10px; text-align:center; background:#fff; color:#000; }
       .qr-box .small{ font-size:12px; opacity:.8; margin-top:6px; word-break:break-all; }
     </style>
 
-    <!-- ① QRコード読取ライブラリ（jsQR） -->
+    <!-- ライブラリ -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <!-- ② QRコード生成ライブラリ（qrcodejs） -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   </head>
   <body>
     <header>QRコード多用途サイト｜ターミナル</header>
 
     <main>
-      <!-- 概要 -->
-      <div class="card">
-        <p>文化祭用ミニハブ（MVP-2）：スタンプ3枠＋QR読み取り＋保存。</p>
-        <ul class="muted">
-          <li>URLの <code>?stamp=s1/s2/s3</code> でも取得可（iPhone標準カメラ等）</li>
-          <li>same device で永続化： <code>localStorage</code></li>
-        </ul>
-      </div>
-
-      <!-- スタンプ枠 -->
       <section class="card">
-        <div class="row" style="justify-content:space-between;">
+        <div class="row">
           <h3 style="margin:0">スタンプ</h3>
-          <div class="row">
+          <div class="row" style="gap:6px;">
             <button id="openScannerBtn" class="button primary">カメラで読み取る</button>
-            <button id="resetStampsBtn" class="button" title="開発時のみ">リセット</button>
+            <button id="resetStampsBtn" class="button">リセット</button>
           </div>
         </div>
-        <div id="stamps" class="stamps" aria-live="polite"></div>
-        <div class="muted" style="margin-top:8px">※ iPhone標準カメラから開いた場合も自動で反映されます。</div>
+        <div id="stamps" class="stamps"></div>
       </section>
 
-      <!-- デバッグ用：QRコードを3つ生成 -->
       <section class="card">
-        <h3 style="margin:0 0 8px">デバッグ用QR（印刷可）</h3>
+        <h3>デバッグ用QR（印刷用）</h3>
         <div id="qrGrid" class="qr-grid"></div>
+        <p class="muted">※各QRは redirect.html を経由し、既存タブを増やさずトップへ戻ります。</p>
       </section>
 
-      <!-- デバッグ：自動保存カウンタ -->
-      <section class="card" id="debugCounterCard">
-        <h3>デバッグカウンタ（自動保存）</h3>
-        <p class="muted">同じ端末・同じブラウザでページを閉じても保持されます。</p>
-        <div class="row">
-          <span>Count: <b id="counterValue">0</b></span>
-          <button id="incBtn" class="button">＋1</button>
-          <button id="resetBtn" class="button" title="開発時のみ利用想定">リセット（0に戻す）</button>
-        </div>
-      </section>
-
-      <!-- ゲーム一覧 -->
+      <!-- デバッグカウンタ -->
       <section class="card">
-        <h3 style="margin:0 0 8px">ゲーム一覧</h3>
-        <div id="game-list" class="grid"></div>
-      </section>
-
-      <!-- プレイヤー(iframe) -->
-      <div id="player" class="player hidden" aria-hidden="true">
-        <div class="player-bar">
-          <button id="closeBtn" class="button">閉じる</button>
-          <span id="playerInfo"></span>
+        <h3>デバッグカウンタ（保持確認）</h3>
+        <div class="row"><span>Count: <b id="counterValue">0</b></span>
+          <button id="incBtn" class="button">＋1</button>
+          <button id="resetBtn" class="button">リセット</button>
         </div>
-        <iframe id="gameFrame" title="game" allow="autoplay" referrerpolicy="no-referrer"></iframe>
-      </div>
+      </section>
     </main>
 
-    <!-- トースト -->
     <div id="toast" class="toast"></div>
 
-    <!-- スキャナモーダル -->
-    <div id="scanner" class="scanner" role="dialog" aria-modal="true" aria-hidden="true">
-      <h3 style="margin:0 0 8px">QRスキャナ</h3>
+    <!-- スキャナUI -->
+    <div id="scanner" class="scanner" role="dialog" aria-modal="true">
       <video id="scanVideo" playsinline></video>
       <canvas id="scanCanvas"></canvas>
-      <div class="bar">
-        <button id="scanCloseBtn" class="button">閉じる</button>
-      </div>
-      <div class="hint">枠内にQRをかざしてください（背面カメラ優先）</div>
+      <button id="scanCloseBtn" class="button" style="margin-top:10px;">閉じる</button>
     </div>
 
-    <!-- 相対パスで（Pages対応） -->
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>スタンプ登録中...</title>
+<style>
+  body {
+    margin:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    height:100vh; font-family:system-ui, sans-serif; background:#000; color:#0f0; text-align:center;
+  }
+  .dot{animation:blink 1s infinite;}
+  @keyframes blink{0%,100%{opacity:.3;}50%{opacity:1;}}
+</style>
+<body>
+  <h1>スタンプを登録中<span class="dot">...</span></h1>
+  <script>
+  const params = new URLSearchParams(location.search);
+  const id = params.get("stamp");
+  if(id){
+    try{
+      const key = "fes:stamps:v1";
+      const raw = localStorage.getItem(key);
+      const arr = raw ? JSON.parse(raw) : [];
+      if(!arr.includes(id)) arr.push(id);
+      localStorage.setItem(key, JSON.stringify(arr));
+    }catch(e){ console.warn(e); }
+  }
+  // 1秒後にメインへ戻る
+  setTimeout(()=>location.replace("./"), 1000);
+  </script>
+</body>
+</html>
