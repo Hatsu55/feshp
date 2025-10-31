@@ -12,7 +12,7 @@ const absoluteBase = location.origin + base;
 // 今回のHTMLでは #stampSlots の中に <div data-stamp="s1">... がある前提
 const STAMP_KEY = "fes:stamps:v1";
 
-// 今回は3つ固定（前と同じID）
+// 3つ固定（前と同じID）
 const STAMP_DEFS = [
   { id: "s1", color: "#4ade80", label: "s1" },
   { id: "s2", color: "#60a5fa", label: "s2" },
@@ -46,7 +46,6 @@ function renderStampsDOM() {
 
   slots.forEach((el) => {
     const id = el.dataset.stamp;
-    // 定義の色を探す
     const def = STAMP_DEFS.find((d) => d.id === id);
     if (owned.has(id)) {
       el.style.background = def?.color || "#76f7c5";
@@ -79,6 +78,35 @@ function applyStampFromURL() {
   history.replaceState(null, "", location.pathname);
 
   return id;
+}
+
+// デバッグ用スタンプリセットボタンを追加
+function injectStampResetButton() {
+  const area = document.getElementById("stampArea");
+  if (!area) return;
+
+  // すでに作ってたら作らない
+  if (area.querySelector(".stamp-reset-btn")) return;
+
+  const btn = document.createElement("button");
+  btn.textContent = "スタンプをリセット";
+  btn.className = "stamp-reset-btn";
+  btn.style.marginTop = "8px";
+  btn.style.background = "rgba(255,255,255,0.03)";
+  btn.style.border = "1px solid rgba(255,255,255,0.05)";
+  btn.style.borderRadius = "8px";
+  btn.style.color = "inherit";
+  btn.style.padding = "5px 10px";
+  btn.style.fontSize = "12px";
+  btn.style.cursor = "pointer";
+
+  btn.addEventListener("click", () => {
+    saveStamps([]);
+    renderStampsDOM();
+    console.log("stamps reset");
+  });
+
+  area.appendChild(btn);
 }
 
 // =============================
@@ -128,9 +156,7 @@ function setupCounterUI() {
 // =============================
 // 3. ゲーム一覧の読み込み（games.json）
 // =============================
-// ← ここが「games.jsonを取得できませんでした」の原因だったので修正
 async function loadGames() {
-  // BASE_URLに依存させることで /feshp/games.json が読めるようにする
   const url = `${base}games.json?ts=${Date.now()}`;
   const res = await fetch(url);
   if (!res.ok) {
@@ -156,7 +182,6 @@ function renderGames(list) {
     card.style.padding = "6px 8px";
     card.style.cursor = "pointer";
     card.innerHTML = `<strong>${escapeHtml(g.title)}</strong><br><span style="opacity:.65">${escapeHtml(g.desc || "")}</span>`;
-    // 今は起動してもiframeがないので説明だけ。将来ここで起動
     card.addEventListener("click", () => {
       alert(`「${g.title}」を起動する処理をここに入れます（後で）`);
     });
@@ -165,7 +190,7 @@ function renderGames(list) {
 }
 
 // =============================
-// 4. ヒーローエリア（スライドしてる白いところ）
+// 4. ヒーローエリア（スライド）
 // =============================
 const HERO_ITEMS = [
   {
@@ -227,9 +252,13 @@ function setupNavCircles() {
       circles.forEach((x) => x.classList.remove("nav-circle--active"));
       c.classList.add("nav-circle--active");
 
-      // 今はまだ1画面なので非表示にはしないでそのまま
       const view = c.dataset.view;
       console.log("switch view ->", view);
+
+      // 今は全部同じパネルをとりあえず見せておく
+      if (lower) {
+        lower.style.display = "flex";
+      }
     });
   });
 }
@@ -261,6 +290,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 2) スタンプ描画
   renderStampsDOM();
 
+  // 2.5) デバッグ用スタンプリセットボタンを生やす
+  injectStampResetButton();
+
   // 3) カウンタ
   setupCounterUI();
 
@@ -281,7 +313,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupNavCircles();
 
   if (fromUrl) {
-    // 簡易トースト代わりにconsole
     console.log(`スタンプ「${fromUrl}」を取得しました`);
   }
 });
