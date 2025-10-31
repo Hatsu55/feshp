@@ -3,92 +3,310 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport"
-          content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>QRコード多用途サイト｜ターミナル（改良版）</title>
+          content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>文化祭ターミナル（ホーム）</title>
+
     <style>
-      :root { color-scheme: light dark; }
-      body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#0b0b0b; color:#f2f2f2; }
-      header { padding: 16px; font-weight: 700; font-size: 18px; border-bottom: 1px solid #333; }
-      main { padding: 16px; display: grid; gap: 16px; }
-      .card {
-        border: 1px solid #333; border-radius: 14px; padding: 16px;
-        box-shadow: 0 4px 14px rgba(0,0,0,.2); background: #0d0d0d;
-      }
-      .button{ display:inline-block; padding:8px 12px; border-radius:999px; border:1px solid #444; background:transparent; color:inherit; cursor:pointer; }
-      .button.primary{ border-color:#3a7; }
-      .muted { opacity:.8; font-size:14px }
-      .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
-
-      /* スタンプ */
-      .stamps{ display:grid; gap:12px; grid-template-columns: repeat(3, minmax(0,1fr)); }
-      .stamp{ border:1px dashed #444; border-radius:16px; min-height:84px; display:flex; align-items:center; justify-content:center; background:#0b0b0b; }
-      .stamp.got{ color:#000; border-style:solid; }
-      .stamp.got .label{ opacity:1 }
-      .label{ font-weight:700; opacity:.7 }
-
-      .toast{
-        position:fixed; left:50%; bottom:40px; transform:translateX(-50%);
-        background:#0f0; color:#000; font-weight:700; padding:10px 16px; border-radius:999px; display:none; z-index:2000;
+      :root {
+        color-scheme: dark;
+        --bg: #0b0b0b;
+        --panel: #13161b;
+        --panel-soft: #1a1d23;
+        --accent: #80ffe0;
+        --text: #f3f5f7;
+        --muted: rgba(243,245,247,0.55);
+        --bottom: #020202;
+        --window-btn: #2a2f36;
       }
 
-      /* スキャナ */
-      .scanner {
-        position:fixed; inset:0; background:rgba(0,0,0,.9); display:none; color:#fff;
-        z-index:1000; padding:16px; box-sizing:border-box;
-      }
-      .scanner.active{ display:block; }
-      .scanner video{ width:100%; max-height:60vh; background:#000; border-radius:12px; }
-      canvas#scanCanvas{ display:none; }
+      * { box-sizing: border-box; }
 
-      .qr-grid{ display:grid; gap:16px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-      .qr-box{ border:1px solid #333; border-radius:12px; padding:10px; text-align:center; background:#fff; color:#000; }
-      .qr-box .small{ font-size:12px; opacity:.8; margin-top:6px; word-break:break-all; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* スマホ幅に寄せる（PCでもスマホ幅で中央表示） */
+      .app-shell {
+        width: min(100%, 440px);
+        margin: 0 auto;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: radial-gradient(circle at top, rgba(255,255,255,0.03), transparent 48%), var(--bg);
+      }
+
+      /* ① 上部黒帯（スマホのUIが来る想定） */
+      .top-safe {
+        height: calc(env(safe-area-inset-top, 18px) + 8px);
+        background: #000;
+        border-bottom: 1px solid rgba(255,255,255,0.09);
+        display: flex;
+        align-items: flex-end;
+        padding: 0 12px 4px;
+        font-size: 10px;
+        color: rgba(255,255,255,0.55);
+      }
+
+      /* ② サイト名 */
+      .site-title {
+        background: rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px;
+        margin: 12px 12px 6px;
+        padding: 10px 14px;
+        font-weight: 600;
+        font-size: 14px;
+      }
+
+      /* ③ スライドショーエリア（比率固定） */
+      .hero-area {
+        margin: 6px 10px 4px;
+        background: #fff;
+        color: #000;
+        border-radius: 6px;
+        overflow: hidden;
+        /* 送ってくれた長辺が長い比率に寄せる。だいたい 900x400 くらいだったので 9:4 にする */
+        aspect-ratio: 9 / 4;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: left;
+        position: relative;
+      }
+      .hero-inner {
+        padding: 12px 14px;
+        width: 100%;
+      }
+      .hero-title {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .hero-list {
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      .hero-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: rgba(0,0,0,.35);
+        color: #fff;
+        font-size: 10px;
+        padding: 3px 6px;
+        border-radius: 99px;
+      }
+
+      /* ④ 未定エリア（細長いパネル） */
+      .info-panel {
+        background: #242a33;
+        border-radius: 20px;
+        margin: 12px 12px 10px;
+        height: 70px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(255,255,255,0.7);
+        font-weight: 500;
+      }
+
+      /* ⑤ 丸っぽいナビボタン（窓型） */
+      .nav-circles {
+        display: flex;
+        gap: 10px;
+        padding: 0 12px;
+        margin-bottom: 10px;
+      }
+      .nav-circle {
+        flex: 1 1 0;
+        background: linear-gradient(160deg, #2b323a, #1b1f23);
+        border: 1px solid rgba(255,255,255,0.04);
+        border-radius: 30px 30px 26px 26px; /* 完全な丸ではなく、ちょい柔らかい形 */
+        height: 96px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-size: 11px;
+        position: relative;
+        overflow: hidden;
+      }
+      .nav-circle--active {
+        background: radial-gradient(circle at 20% 10%, rgba(128,255,224,0.35), rgba(37,43,49,1) 60%), #252b31;
+      }
+      .nav-circle-label {
+        position: absolute;
+        bottom: -18px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: transparent;
+        padding-top: 22px;
+        font-size: 11px;
+        color: rgba(255,255,255,0.75);
+      }
+      .nav-circle::after {
+        content:"";
+        position:absolute;
+        inset:7px 12px 42px;
+        border:1px dashed rgba(255,255,255,0.08);
+        border-radius: 999px;
+        pointer-events:none;
+      }
+
+      /* ⑥ メイン下部（デバッグ・仮配置ゾーン） */
+      .lower-panel {
+        background: rgba(19,22,27,0.7);
+        border-top: 1px solid rgba(255,255,255,0.035);
+        margin: 8px 0 68px;
+        padding: 12px;
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .sub-card {
+        background: rgba(2,3,4,0.25);
+        border: 1px solid rgba(255,255,255,0.02);
+        border-radius: 14px;
+        padding: 10px 12px;
+      }
+      .sub-card-title {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+
+      /* デバッグカウンタ */
+      .debug-counter {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .btn-sm {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.03);
+        color: inherit;
+        border-radius: 8px;
+        padding: 5px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      /* ⑦ 下部黒帯ナビ（グレー丸4つ） */
+      .bottom-nav {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 0;
+        width: min(100%, 440px);
+        background: rgba(0,0,0,0.85);
+        border-top: 1px solid rgba(255,255,255,0.08);
+        padding: 10px 18px 12px;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        z-index: 50;
+      }
+      .bottom-dot {
+        width: 42px;
+        height: 42px;
+        background: rgba(255,255,255,0.07);
+        border-radius: 999px;
+      }
+
+      /* スマホで余白が足りないときのスクロール */
+      main {
+        flex: 1;
+      }
     </style>
-
-    <!-- ライブラリ -->
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   </head>
   <body>
-    <header>QRコード多用途サイト｜ターミナル</header>
+    <div class="app-shell">
+      <div class="top-safe">
+        このあたりに各スマホの上部UIが表示されている想定
+      </div>
 
-    <main>
-      <section class="card">
-        <div class="row">
-          <h3 style="margin:0">スタンプ</h3>
-          <div class="row" style="gap:6px;">
-            <button id="openScannerBtn" class="button primary">カメラで読み取る</button>
-            <button id="resetStampsBtn" class="button">リセット</button>
+      <!-- サイト名 -->
+      <div class="site-title">
+        文化祭ミニゲームターミナル（仮）
+      </div>
+
+      <!-- スライドショー領域（いまは静的） -->
+      <div class="hero-area" id="heroArea">
+        <div class="hero-inner">
+          <div class="hero-title">画像が遷移する画面</div>
+          <div class="hero-list">
+            ・adminで設定した4種類の画像が一定時間ごとにループで切り替わっていく。<br>
+            ・開始が近いイベントや目玉ゲームの画像を表示する予定。
           </div>
         </div>
-        <div id="stamps" class="stamps"></div>
-      </section>
+        <div class="hero-badge" id="heroBadge">1 / 4</div>
+      </div>
 
-      <section class="card">
-        <h3>デバッグ用QR（印刷用）</h3>
-        <div id="qrGrid" class="qr-grid"></div>
-        <p class="muted">※各QRは redirect.html を経由し、既存タブを増やさずトップへ戻ります。</p>
-      </section>
+      <!-- 未定エリア（細長いパネル） -->
+      <div class="info-panel">
+        なにを表示するかは未定（ここは後で差し替え）
+      </div>
 
-      <!-- デバッグカウンタ -->
-      <section class="card">
-        <h3>デバッグカウンタ（保持確認）</h3>
-        <div class="row"><span>Count: <b id="counterValue">0</b></span>
-          <button id="incBtn" class="button">＋1</button>
-          <button id="resetBtn" class="button">リセット</button>
+      <!-- 機能ナビボタン（丸っぽい窓型） -->
+      <div class="nav-circles">
+        <div class="nav-circle nav-circle--active" data-view="games">
+          ミニ<br>ゲーム
+          <div class="nav-circle-label">Games</div>
         </div>
-      </section>
-    </main>
+        <div class="nav-circle" data-view="stamps">
+          スタンプ
+          <div class="nav-circle-label">Stamps</div>
+        </div>
+        <div class="nav-circle" data-view="clubs">
+          部展紹介
+          <div class="nav-circle-label">Clubs</div>
+        </div>
+      </div>
 
-    <div id="toast" class="toast"></div>
+      <!-- 下部の仮配置ゾーン -->
+      <main>
+        <div class="lower-panel" id="lowerPanel">
+          <!-- ここに今あるスタンプ原型・デバッグをいったん入れておく -->
+          <div class="sub-card" id="stampArea">
+            <div class="sub-card-title">スタンプ取得テスト（仮配置）</div>
+            <div id="stampSlots" style="display:flex; gap:8px;">
+              <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s1">s1</div>
+              <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s2">s2</div>
+              <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s3">s3</div>
+            </div>
+          </div>
 
-    <!-- スキャナUI -->
-    <div id="scanner" class="scanner" role="dialog" aria-modal="true">
-      <video id="scanVideo" playsinline></video>
-      <canvas id="scanCanvas"></canvas>
-      <button id="scanCloseBtn" class="button" style="margin-top:10px;">閉じる</button>
+          <div class="sub-card" id="counterArea">
+            <div class="sub-card-title">デバッグカウンタ（自動保存）</div>
+            <div class="debug-counter">
+              <span>Count: <strong id="counterValue">0</strong></span>
+              <button class="btn-sm" id="incBtn">＋1</button>
+              <button class="btn-sm" id="resetBtn">リセット</button>
+            </div>
+          </div>
+
+          <div class="sub-card">
+            <div class="sub-card-title">ゲーム一覧（プレースホルダ）</div>
+            <div id="gamesList" style="display:flex; flex-direction:column; gap:6px; font-size:13px;"></div>
+          </div>
+        </div>
+      </main>
+
+      <!-- 下の黒帯ナビ（まだダミー） -->
+      <div class="bottom-nav">
+        <div class="bottom-dot"></div>
+        <div class="bottom-dot"></div>
+        <div class="bottom-dot"></div>
+        <div class="bottom-dot"></div>
+      </div>
     </div>
 
-    <script type="module" src="./src/main.js"></script>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>
