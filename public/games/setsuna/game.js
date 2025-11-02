@@ -1,4 +1,5 @@
-// game.js
+// game.js（役割ごとに結果表示を分けた版）
+
 const STATE = {
   IDLE: "idle",
   ATTACK_WAIT: "attack_wait",
@@ -7,12 +8,17 @@ const STATE = {
 };
 
 let state = STATE.IDLE;
+
+// いま自分がどちら側なのかを覚えておく
+// "attacker" | "defender" | null
+let currentRole = null;
+
 let defendTimeoutId = null;
 let resultTimeoutId = null;
-let currentDefendWindow = 300; // ms, スライダーで変更
+let currentDefendWindow = 300; // ms
 let enemyReactionMode = "normal"; // fast / normal / slow / random
 
-// DOM取得
+// DOM
 const gameStateEl = document.getElementById("game-state");
 const alertSymbolEl = document.getElementById("alert-symbol");
 const alertTextEl = document.getElementById("alert-text");
@@ -50,49 +56,56 @@ function enableAttackBtn(enabled) {
   attackBtn.disabled = !enabled;
 }
 
-// ===== 攻撃処理（自分が斬る） =====
+// ===== あなたが攻撃する時 =====
 function onAttack() {
   if (state !== STATE.IDLE) {
     return;
   }
-  // ここで本来なら sendSlash() する（RTDBに書き込む）
+
+  // あなたは「攻撃側」
+  currentRole = "attacker";
+
+  // 本来はここでRTDBにslashを書く
   mockSendSlash();
+
   setState(STATE.ATTACK_WAIT);
   showAlert("斬", "相手の反応を待っています…", "#e2e8f0");
   enableAttackBtn(false);
 
-  // タイムアウト監視（450msで結果が来なかったら中止）
+  // 450ms待っても帰ってこなかったらtimeout
   const TIMEOUT_MS = 450;
   setTimeout(() => {
     if (state === STATE.ATTACK_WAIT) {
-      // 相手から帰ってこなかったので中止
       onRemoteTimeout();
     }
   }, TIMEOUT_MS);
 }
 
-// ===== 防御モードに入る（相手が斬ってきた） =====
+// ===== 相手が斬ってきた（防御に入る） =====
 function enterDefendMode() {
   clearTimers();
+
+  // あなたは「防御側」
+  currentRole = "defender";
+
   setState(STATE.DEFEND);
   showAlert("！", "斬り返せ！", "#f97316");
   enableAttackBtn(true); // 同じボタンでカウンターできる
 
-  // タイマーバー表示
   timerBarWrap.classList.remove("hidden");
   timerBar.style.width = "100%";
 
   const start = performance.now();
   const windowMs = currentDefendWindow;
 
-  // 0.3s以内に押されなかったら被弾判定
+  // 0.3s以内に押されなかったら被弾
   defendTimeoutId = setTimeout(() => {
-    // ここで自分は "hit" を返す（本来ならRTDBに書く）
+    // 防御に失敗したので "hit" を返す
     mockSendSlashResult("hit");
-    showResult("hit");
+    showResult("hit", "defender");
   }, windowMs);
 
-  // バーをアニメーションさせる
+  // バーのアニメ
   function tick(now) {
     if (state !== STATE.DEFEND) return;
     const elapsed = now - start;
@@ -106,38 +119,66 @@ function enterDefendMode() {
   requestAnimationFrame(tick);
 }
 
-// ===== 防御時のタップ（カウンター） =====
+// ===== 防御中にタップ（カウンター成功） =====
 function onDefendTap() {
   if (state !== STATE.DEFEND) return;
-  // 間に合った！
+
   clearTimeout(defendTimeoutId);
   defendTimeoutId = null;
-  // ここで "counter" を返す
+
+  // 相手に「カウンターしたよ」と返す
   mockSendSlashResult("counter");
-  showResult("counter");
+
+  showResult("counter", "defender");
 }
 
-// ===== 結果表示 → idleに戻す =====
-function showResult(type) {
+// ===== 結果表示 =====
+function showResult(type, role = currentRole) {
+  // role が渡されなかったら、最後に覚えている役割で表示する
+
   setState(STATE.RESULT);
   timerBarWrap.classList.add("hidden");
   enableAttackBtn(false);
 
-  if (type === "counter") {
-    showAlert("◎", "カウンター成功！", "#22c55e");
-    log("あなたのカウンター成功");
-  } else if (type === "hit") {
-    showAlert("×", "被弾…", "#ef4444");
-    log("あなたは被弾しました");
-  } else if (type === "draw") {
-    showAlert("＝", "相打ち", "#e2e8f0");
-    log("相打ち");
-  } else if (type === "timeout") {
-    showAlert("…", "通信中止（timeout）", "#f97316");
-    log("通信中止（timeout）");
+  // 攻撃側のときのメッセージ
+  if (role === "attacker") {
+    if (type === "counter") {
+      // 相手が0.3s以内に斬り返した
+      showAlert("防", "相手に防がれた！（カウンター）", "#ef4444");
+      log("あなたの攻撃は相手に防がれました");
+    } else if (type === "hit") {
+      showAlert("◎", "命中！", "#22c55e");
+      log("あなたの攻撃が命中しました");
+    } else if (type === "draw") {
+      showAlert("＝", "相打ち", "#e2e8f0");
+      log("相打ち");
+    } else if (type === "timeout") {
+      showAlert("…", "相手の反応がありません（中止）", "#f97316");
+      log("相手の反応がなく中止になりました");
+    }
+  }
+  // 防御側のときのメッセージ
+  else if (role === "defender") {
+    if (type === "counter") {
+      showAlert("◎", "カウンター成功！", "#22c55e");
+      log("あなたのカウンター成功");
+    } else if (type === "hit") {
+      showAlert("×", "被弾…", "#ef4444");
+      log("あなたは被弾しました");
+    } else if (type === "draw") {
+      showAlert("＝", "相打ち", "#e2e8f0");
+      log("相打ち");
+    } else if (type === "timeout") {
+      showAlert("…", "通信中止（timeout）", "#f97316");
+      log("通信中止（timeout）");
+    }
+  }
+  // どちらでもないとき（保険）
+  else {
+    showAlert("＝", "結果: " + type, "#e2e8f0");
   }
 
-  // 1秒後にidleに戻す
+  // 1秒後にidleへ
   resultTimeoutId = setTimeout(() => {
     toIdle();
   }, 1000);
@@ -145,6 +186,7 @@ function showResult(type) {
 
 function toIdle() {
   clearTimers();
+  currentRole = null;
   setState(STATE.IDLE);
   showAlert("", "待機中です。あなたか相手が斬ると始まります。");
   enableAttackBtn(true);
@@ -157,21 +199,17 @@ function clearTimers() {
   resultTimeoutId = null;
 }
 
-// ====== モック通信層 ======
-// 本番ではここをFirebaseに差し替えればOKなようにしておく
+// ===== モック通信層 =====
 function mockSendSlash() {
   log("あなたが斬りました（mockSendSlash）");
 
-  // ここで「敵が結果を返すまでの時間」を決める
   const enemyDelay = getEnemyReactionMs();
 
   setTimeout(() => {
-    // もしこっちも同時に敵のslashを受けてたら → 相打ちにする
+    // もし自分も同時に相手のslashを受けてDEFENDになってたら → 相打ち扱い
     if (state !== STATE.ATTACK_WAIT) {
-      // もう他の状態（DEFENDとか）になっていたら相打ち扱い
       return;
     }
-    // ダミーでは 50%でcounter、50%でhit にしてみる
     const isCounter = Math.random() < 0.5;
     if (isCounter) {
       onRemoteSlashResult("counter");
@@ -183,33 +221,32 @@ function mockSendSlash() {
 
 function mockSendSlashResult(result) {
   log(`あなたが結果を返しました（mockSendSlashResult: ${result}）`);
-  // 本来はここでRTDBに書く
 }
 
-// ====== モックで相手から来るイベント群 ======
-
-// 相手が“あなたに斬ってきた”とき
+// 相手があなたに slash を送ってきた想定
 function onRemoteSlash() {
   log("相手があなたに斬ってきました（onRemoteSlash）");
-  // もし自分も今ATTACK_WAITなら → 同時斬り（相打ち）
+
+  // あなたがいま攻撃中なら → 同時斬り
   if (state === STATE.ATTACK_WAIT) {
-    showResult("draw");
+    showResult("draw", null);
     return;
   }
-  // それ以外なら普通に防御へ
+
+  // 普通に防御へ
   enterDefendMode();
 }
 
-// 相手が“結果”を返してきたとき（自分が先に斬ったとき）
+// あなたが先に斬って、相手が結果を返してきたとき
 function onRemoteSlashResult(result) {
   if (state !== STATE.ATTACK_WAIT) return;
-  showResult(result);
+  // このときは必ず「攻撃側としての結果表示」
+  showResult(result, "attacker");
 }
 
-// タイムアウトされたとき
 function onRemoteTimeout() {
   if (state !== STATE.ATTACK_WAIT) return;
-  showResult("timeout");
+  showResult("timeout", "attacker");
 }
 
 // 敵の反応時間を決める
@@ -230,7 +267,7 @@ function getEnemyReactionMs() {
   }
 }
 
-// ====== イベントバインド ======
+// ===== イベントバインド =====
 attackBtn.addEventListener("click", () => {
   if (state === STATE.DEFEND) {
     onDefendTap();
@@ -253,7 +290,7 @@ defendWindowRange.addEventListener("input", (e) => {
   defendWindowLabel.textContent = `${currentDefendWindow}ms`;
 });
 
-// PCデバッグ用のキー入力
+// PCデバッグ用
 window.addEventListener("keydown", (e) => {
   if (e.code === "Space" || e.code === "Enter") {
     e.preventDefault();
@@ -265,6 +302,6 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-// 初期表示
+// 初期化
 toIdle();
 log("ゲームを開始しました。斬るボタンまたはSpaceで攻撃できます。");

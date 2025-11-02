@@ -11,6 +11,12 @@
       "title": "Hello Frame",
       "desc": "単純な表示だけのサンプル",
       "path": "games/hello/index.html"
+    },
+    {
+      "id": "setsuna",
+      "title": "刹那の見切り（試作）",
+      "desc": "1vs1反応対戦のデモ",
+      "path": "games/setsuna/index.html"
     }
   ]
 }
