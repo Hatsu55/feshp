@@ -1,0 +1,177 @@
+:root {
+  --bg: #0f172a;
+  --panel: rgba(15, 23, 42, 0.5);
+  --accent: #f97316;
+  --ok: #22c55e;
+  --ng: #ef4444;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body.setsuna-body {
+  margin: 0;
+  background: radial-gradient(circle at top, #1f2937 0%, #0f172a 60%);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh;
+}
+
+.game-shell {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.game-state {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.game-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.alert-area {
+  min-height: 150px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.alert-symbol {
+  font-size: 3.8rem;
+  font-weight: 800;
+  line-height: 1;
+  height: 4rem;
+}
+
+.alert-text {
+  font-size: 1rem;
+  margin-top: 8px;
+  min-height: 1.5rem;
+}
+
+.timer-bar-wrap {
+  width: 100%;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.timer-bar {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #ef4444);
+  transition: width 0.05s linear;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.log-area {
+  min-height: 70px;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  padding: 6px 10px;
+  overflow-y: auto;
+  max-height: 100px;
+}
+
+.game-footer {
+  position: sticky;
+  bottom: 0;
+}
+
+.primary-btn {
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 16px 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.primary-btn:disabled {
+  background: rgba(249, 115, 22, 0.35);
+  cursor: not-allowed;
+}
+
+.debug-panel {
+  margin-top: 6px;
+  background: rgba(15, 23, 42, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 8px 10px 10px;
+  font-size: 0.75rem;
+  gap: 4px;
+}
+
+.debug-panel h2 {
+  font-size: 0.75rem;
+  margin: 0 0 4px 0;
+  color: var(--muted);
+}
+
+.debug-row {
+  margin-bottom: 4px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.debug-panel button {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .alert-area {
+    min-height: 120px;
+  }
+  .primary-btn {
+    padding: 14px 10px;
+  }
+}

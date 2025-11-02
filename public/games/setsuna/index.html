@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>刹那の見切り（試作）</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="setsuna-body">
+    <div id="app" class="game-shell">
+      <!-- 上部ヘッダ -->
+      <header class="game-header">
+        <div class="game-title">刹那の見切り（試作）</div>
+        <div class="game-state" id="game-state">state: idle</div>
+      </header>
+
+      <!-- メイン表示領域 -->
+      <main class="game-main">
+        <div id="alert-area" class="alert-area">
+          <!-- ここに「！」や結果テキストが出る -->
+          <div id="alert-symbol" class="alert-symbol"></div>
+          <div id="alert-text" class="alert-text"></div>
+        </div>
+
+        <!-- タイムバー（防御時だけ表示） -->
+        <div id="timer-bar-wrap" class="timer-bar-wrap hidden">
+          <div id="timer-bar" class="timer-bar"></div>
+        </div>
+
+        <!-- ログ -->
+        <div id="log-area" class="log-area"></div>
+      </main>
+
+      <!-- コントロール領域（タップで斬る） -->
+      <footer class="game-footer">
+        <button id="attack-btn" class="primary-btn">斬る / COUNTER (タップ or Space)</button>
+      </footer>
+
+      <!-- デバッグパネル -->
+      <section class="debug-panel" id="debug-panel">
+        <h2>Debug</h2>
+        <div class="debug-row">
+          <button id="fake-enemy-attack-btn">相手が斬ってきた！</button>
+        </div>
+        <div class="debug-row">
+          <label>敵の反応速度:
+            <select id="enemy-speed-select">
+              <option value="fast">fast (0.15s)</option>
+              <option value="normal" selected>normal (0.25s)</option>
+              <option value="slow">slow (0.4s)</option>
+              <option value="random">random (0.15〜0.45)</option>
+            </select>
+          </label>
+        </div>
+        <div class="debug-row">
+          <label>自分の防御受付(ms):
+            <input type="range" id="defend-window-range" min="150" max="600" value="300" />
+            <span id="defend-window-label">300ms</span>
+          </label>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./game.js"></script>
+  </body>
+</html>
