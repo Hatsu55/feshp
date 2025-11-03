@@ -1,13 +1,20 @@
-// game.js（ネットがなくても動く＋マッチング成功ログつき＋カウンター2倍＋HP10000）
+// game.js
+// オンライン対戦前提版（仮の敵なし）
+// - マッチングするまで遊べません
+// - カウンター成功時はダメージ無効＋2倍返し
+// - HPは10000
+// - ダメージ式はあなたが調整していた 400*(1+step) を採用（0〜100を10段階）
 
 const STATE = {
+  INIT: "init",
+  WAIT_MATCH: "wait_match",
   IDLE: "idle",
   ATTACK_WAIT: "attack_wait",
   DEFEND: "defend",
   RESULT: "result",
 };
 
-let state = STATE.IDLE;
+let state = STATE.INIT;
 let currentRole = null;
 
 // ===== 共通ゲージ =====
@@ -20,7 +27,7 @@ const HP_MAX = 10000;
 let hpYou = HP_MAX;
 let hpEnemy = HP_MAX;
 
-// 今回の一撃の情報（攻撃側が決める）
+// 今回の攻撃
 let pendingAttackCharge = 0;
 let pendingAttackDamage = 0;
 
@@ -30,16 +37,13 @@ let resultTimeoutId = null;
 
 // 防御受付
 let currentDefendWindow = 300;
-let enemyReactionMode = "normal";
 
-// DOM
+// DOM取得
 const gameStateEl = document.getElementById("game-state");
 const alertSymbolEl = document.getElementById("alert-symbol");
 const alertTextEl = document.getElementById("alert-text");
 const logAreaEl = document.getElementById("log-area");
 const attackBtn = document.getElementById("attack-btn");
-const fakeEnemyAttackBtn = document.getElementById("fake-enemy-attack-btn");
-const enemySpeedSelect = document.getElementById("enemy-speed-select");
 const defendWindowRange = document.getElementById("defend-window-range");
 const defendWindowLabel = document.getElementById("defend-window-label");
 const timerBarWrap = document.getElementById("timer-bar-wrap");
@@ -48,9 +52,10 @@ const commonGaugeFill = document.getElementById("common-gauge-fill");
 const commonGaugeValue = document.getElementById("common-gauge-value");
 const hpYouEl = document.getElementById("hp-you");
 const hpEnemyEl = document.getElementById("hp-enemy");
+const netStatusLabel = document.getElementById("net-status-label");
 
-// ===== ネット（あってもなくてもOK） =====
-const net = window.SetsunaNet || createLocalNet();
+// ネット
+const net = window.SetsunaNet;
 
 // ===== util =====
 function setState(next) {
@@ -69,8 +74,6 @@ function showAlert(symbol, text, color) {
 function enableAttackBtn(enabled) {
   attackBtn.disabled = !enabled;
 }
-
-// ===== ゲージ/HP表示 =====
 function updateCommonGaugeView() {
   const pct = Math.min(Math.max(commonGauge, 0), COMMON_GAUGE_MAX);
   commonGaugeFill.style.width = `${pct}%`;
@@ -80,14 +83,22 @@ function updateHpView() {
   hpYouEl.style.width = `${Math.max(0, (hpYou / HP_MAX) * 100)}%`;
   hpEnemyEl.style.width = `${Math.max(0, (hpEnemy / HP_MAX) * 100)}%`;
 }
+function clearTimers() {
+  if (defendTimeoutId) clearTimeout(defendTimeoutId);
+  defendTimeoutId = null;
+  if (resultTimeoutId) clearTimeout(resultTimeoutId);
+  resultTimeoutId = null;
+}
 
-// ===== あなたが調整したダメージ式（10段階・400刻み） =====
+// ===== ダメージ式（あなたが調整したもの） =====
+// 0〜100% → 10段階 → 400 * (1〜11) = 400〜4400
 function calcDamageFromCharge(chargePct) {
   const c = Math.max(0, Math.min(100, Math.floor(chargePct)));
   const step = Math.floor(c / 10); // 0〜10
-  return 400 * (1 + step); // 400〜4400
+  return 400 * (1 + step);
 }
 
+// ゲージ消費（このゲームは一撃ごとに使い切り）
 function consumeGaugeAfterAttack() {
   commonGauge = 0;
   updateCommonGaugeView();
@@ -95,7 +106,7 @@ function consumeGaugeAfterAttack() {
   pendingAttackDamage = 0;
 }
 
-// ===== ゲージ自動回復 =====
+// ===== ゲージを時間で溜める =====
 function startCommonGaugeLoop() {
   if (commonGaugeTimerId) return;
   commonGaugeTimerId = setInterval(() => {
@@ -106,44 +117,53 @@ function startCommonGaugeLoop() {
   }, 100);
 }
 
-// ===== あなたが攻撃する =====
+// ===== 攻撃する =====
 function onAttack() {
+  // マッチしてない、または待ちでは押せないようにする
   if (state !== STATE.IDLE) return;
 
   pendingAttackCharge = commonGauge;
   pendingAttackDamage = calcDamageFromCharge(pendingAttackCharge);
-  currentRole = "attacker";
 
-  // ネットに流す（ローカルでもここは呼ばれる）
+  currentRole = "attacker";
+  setState(STATE.ATTACK_WAIT);
+  enableAttackBtn(false);
+  showAlert("斬", `相手の反応を待っています…（${pendingAttackDamage}）`, "#e2e8f0");
+  log(`あなたが斬りました。ダメージ予定: ${pendingAttackDamage}`);
+
+  // ネットに送信
   net.sendSlash({
     damage: pendingAttackDamage,
     charge: pendingAttackCharge,
-    createdAt: Date.now(),
+    ts: Date.now(),
   });
 
-  setState(STATE.ATTACK_WAIT);
-  showAlert("斬", `相手の反応を待っています…（${pendingAttackDamage}ダメ予定）`, "#e2e8f0");
-  enableAttackBtn(false);
-
-  // 念のためのタイムアウト
-  setTimeout(() => {
+  // 念のためのタイムアウト（相手が返してこなかったら）
+  resultTimeoutId = setTimeout(() => {
     if (state === STATE.ATTACK_WAIT) {
-      onRemoteTimeout();
+      showResult("timeout", "attacker");
     }
-  }, 500);
+  }, 1000);
 }
 
-// ===== 相手が斬ってきた（ネットから来る） =====
+// ===== 相手が斬ってきた（netから来る） =====
 function enterDefendModeFromRemote(payload) {
-  clearTimers();
-  currentRole = "defender";
+  // もし自分も同じタイミングでATTACK_WAITだったら → 同時斬り
+  if (state === STATE.ATTACK_WAIT) {
+    showResult("draw", null);
+    return;
+  }
 
+  clearTimers();
+
+  currentRole = "defender";
   pendingAttackDamage = payload?.damage ?? 400;
   pendingAttackCharge = payload?.charge ?? 0;
 
   setState(STATE.DEFEND);
-  showAlert("！", "斬り返せ！", "#f97316");
   enableAttackBtn(true);
+  showAlert("！", "斬り返せ！", "#f97316");
+  log(`相手が斬ってきました。受けると ${pendingAttackDamage} ダメージ`);
 
   timerBarWrap.classList.remove("hidden");
   timerBar.style.width = "100%";
@@ -152,12 +172,12 @@ function enterDefendModeFromRemote(payload) {
   const windowMs = currentDefendWindow;
 
   defendTimeoutId = setTimeout(() => {
-    // 防御失敗 → この一撃分だけ食らう
+    // 防御失敗
     applyDamageTo("you", pendingAttackDamage);
     consumeGaugeAfterAttack();
     net.sendSlashResult({
       result: "hit",
-      createdAt: Date.now(),
+      ts: Date.now(),
     });
     showResult("hit", "defender");
   }, windowMs);
@@ -172,9 +192,10 @@ function enterDefendModeFromRemote(payload) {
   requestAnimationFrame(tick);
 }
 
-// ===== 防御中タップ（カウンター2倍） =====
+// ===== 防御中タップ（カウンター） =====
 function onDefendTap() {
   if (state !== STATE.DEFEND) return;
+
   clearTimeout(defendTimeoutId);
   defendTimeoutId = null;
 
@@ -184,7 +205,7 @@ function onDefendTap() {
   net.sendSlashResult({
     result: "counter",
     damage: reflected,
-    createdAt: Date.now(),
+    ts: Date.now(),
   });
   showResult("counter", "defender", reflected);
 }
@@ -198,7 +219,7 @@ function applyDamageTo(who, amount) {
     if (hpYou <= 0) {
       showAlert("×", "YOU LOSE", "#ef4444");
       log("あなたのHPが0になりました");
-      setTimeout(() => resetBattle(), 1200);
+      setTimeout(() => resetBattle(), 1500);
     }
   } else {
     hpEnemy = Math.max(0, hpEnemy - amount);
@@ -206,7 +227,7 @@ function applyDamageTo(who, amount) {
     if (hpEnemy <= 0) {
       showAlert("◎", "YOU WIN!", "#22c55e");
       log("敵のHPが0になりました");
-      setTimeout(() => resetBattle(), 1200);
+      setTimeout(() => resetBattle(), 1500);
     }
   }
 }
@@ -219,34 +240,42 @@ function showResult(type, role = currentRole, extraDamage = null) {
 
   if (role === "attacker") {
     if (type === "counter") {
+      // 相手にカウンターされた → 2倍食らう
       const reflected = pendingAttackDamage * 2;
       applyDamageTo("you", reflected);
       showAlert("防", `相手に防がれた！（カウンター${reflected}）`, "#ef4444");
-      log(`あなたの攻撃はカウンターされ、${reflected}ダメージを受けました`);
+      log(`攻撃がカウンターされました（${reflected}ダメージ）`);
       consumeGaugeAfterAttack();
     } else if (type === "hit") {
       applyDamageTo("enemy", pendingAttackDamage);
-      showAlert("◎", `命中！（${pendingAttackDamage}ダメージ）`, "#22c55e");
-      log(`あなたの攻撃が命中（${pendingAttackDamage}ダメージ）`);
+      showAlert("◎", `命中！（${pendingAttackDamage}）`, "#22c55e");
+      log(`攻撃が命中しました（${pendingAttackDamage}ダメージ）`);
+      consumeGaugeAfterAttack();
+    } else if (type === "draw") {
+      showAlert("＝", "相打ち", "#e2e8f0");
+      log("同時斬り → 相打ち");
       consumeGaugeAfterAttack();
     } else if (type === "timeout") {
       showAlert("…", "相手の反応がありません（中止）", "#f97316");
-      log("相手の反応がなく中止になりました");
+      log("相手から結果が返ってこなかったため中止しました");
       consumeGaugeAfterAttack();
     }
   } else if (role === "defender") {
     if (type === "counter") {
       const dmg = extraDamage ?? pendingAttackDamage * 2;
-      showAlert("◎", `カウンター成功！（${dmg}ダメージ返し）`, "#22c55e");
-      log(`あなたのカウンター成功（${dmg}ダメージ返し）`);
+      showAlert("◎", `カウンター成功！（${dmg}ダメージ）`, "#22c55e");
+      log(`カウンター成功（${dmg}ダメージ返し）`);
     } else if (type === "hit") {
       showAlert("×", "被弾…", "#ef4444");
-      log("あなたは被弾しました");
+      log("防御に失敗しました");
     }
+  } else {
+    showAlert("", `結果: ${type}`);
   }
 
+  // 両方ともHPが残っているときだけIDLEに戻す
   resultTimeoutId = setTimeout(() => {
-    if (hpYou > 0 && hpEnemy > 0) {
+    if (hpYou > 0 && hpEnemy > 0 && state === STATE.RESULT) {
       toIdle();
     }
   }, 1000);
@@ -258,13 +287,6 @@ function toIdle() {
   setState(STATE.IDLE);
   showAlert("", "待機中です。あなたか相手が斬ると始まります。");
   enableAttackBtn(true);
-}
-
-function clearTimers() {
-  if (defendTimeoutId) clearTimeout(defendTimeoutId);
-  defendTimeoutId = null;
-  if (resultTimeoutId) clearTimeout(resultTimeoutId);
-  resultTimeoutId = null;
 }
 
 // ===== ネットからのイベントを受ける =====
@@ -284,45 +306,40 @@ net.onRemoteSlashResult((payload) => {
   }
 });
 
-// マッチング成功したらログを出す
-net.onMatched((info) => {
-  log(`マッチング成功: room=${info.roomId} slot=${info.slot} mode=${info.mode}`);
-  showAlert("◎", "マッチング成立しました", "#22c55e");
-  // 1秒後に待機に戻す
-  setTimeout(() => {
+// マッチング状態を受ける
+net.onStatus((info) => {
+  if (info.state === "offline") {
+    setState(STATE.INIT);
+    netStatusLabel.textContent = "ネットワーク: Firebase未設定（オンライン不可）";
+    showAlert("×", "オンライン機能が無効です（Firebase未設定）", "#f97316");
+    enableAttackBtn(false);
+  } else if (info.state === "connecting") {
+    setState(STATE.WAIT_MATCH);
+    netStatusLabel.textContent = "ネットワーク: 接続中…";
+    showAlert("…", "オンラインに接続中です…", "#e2e8f0");
+    enableAttackBtn(false);
+  } else if (info.state === "waiting") {
+    setState(STATE.WAIT_MATCH);
+    netStatusLabel.textContent = "ネットワーク: もう1台を待っています";
+    showAlert("…", "もう1台で同じURLを開いてください", "#e2e8f0");
+    enableAttackBtn(false);
+  } else if (info.state === "matched") {
+    netStatusLabel.textContent = `ネットワーク: マッチング成功 (room=${info.roomId}, slot=${info.slot})`;
+    log(`マッチング成功: room=${info.roomId} slot=${info.slot}`);
+    // ここでIDLEに入ってボタンを有効にする
     toIdle();
-  }, 1000);
+  } else if (info.state === "error") {
+    setState(STATE.INIT);
+    netStatusLabel.textContent = `ネットワーク: エラー (${info.error})`;
+    showAlert("×", "オンライン接続でエラーが発生しました", "#ef4444");
+    enableAttackBtn(false);
+  }
 });
 
-// ===== ローカルネットを作る（setsuna-net.jsがないとき） =====
-function createLocalNet() {
-  console.log("[game.js] setsuna-net.js が無いのでローカルモードで起動します");
-  let slashCb = () => {};
-  let resultCb = () => {};
-  let matchedCb = () => {};
-  return {
-    joinMatchmaking() {
-      // 即マッチしたことにする
-      matchedCb && matchedCb({ roomId: "local-room", slot: "p1", mode: "local" });
-    },
-    sendSlash(payload) {
-      // そのまま相手が斬ってきたように自分に返す
-      slashCb && slashCb(payload);
-    },
-    sendSlashResult(payload) {
-      resultCb && resultCb(payload);
-    },
-    onRemoteSlash(cb) {
-      slashCb = cb;
-    },
-    onRemoteSlashResult(cb) {
-      resultCb = cb;
-    },
-    onMatched(cb) {
-      matchedCb = cb;
-    },
-  };
-}
+// マッチしたときの明示的なイベント（あってもなくてもいいが、デバッグしやすい）
+net.onMatched((room) => {
+  log(`onMatched: room=${room.roomId} slot=${room.slot}`);
+});
 
 // ===== イベントバインド =====
 attackBtn.addEventListener("click", () => {
@@ -332,17 +349,6 @@ attackBtn.addEventListener("click", () => {
     onAttack();
   }
 });
-fakeEnemyAttackBtn.addEventListener("click", () => {
-  // ローカルで「相手が斬ってきた」を試す
-  enterDefendModeFromRemote({
-    damage: calcDamageFromCharge(commonGauge),
-    charge: commonGauge,
-  });
-});
-enemySpeedSelect.addEventListener("change", (e) => {
-  enemyReactionMode = e.target.value;
-  log(`敵の反応速度モードを ${enemyReactionMode} にしました`);
-});
 defendWindowRange.addEventListener("input", (e) => {
   currentDefendWindow = Number(e.target.value);
   defendWindowLabel.textContent = `${currentDefendWindow}ms`;
@@ -350,8 +356,9 @@ defendWindowRange.addEventListener("input", (e) => {
 window.addEventListener("keydown", (e) => {
   if (e.code === "Space" || e.code === "Enter") {
     e.preventDefault();
-    if (state === STATE.DEFEND) onDefendTap();
-    else onAttack();
+    if (!attackBtn.disabled) {
+      attackBtn.click();
+    }
   }
 });
 
@@ -362,12 +369,12 @@ function resetBattle() {
   updateHpView();
   commonGauge = 0;
   updateCommonGaugeView();
-  pendingAttackCharge = 0;
-  pendingAttackDamage = 0;
-  toIdle();
+  clearTimers();
+  setState(STATE.INIT);
+  enableAttackBtn(false);
 }
 
 resetBattle();
 startCommonGaugeLoop();
 net.joinMatchmaking();
-log("オンライン（またはローカル）待機に入りました。");
+log("オンライン待機に入りました。別の端末で同じURLを開くとマッチングします。");

@@ -2,21 +2,19 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <title>刹那の見切り（試作）</title>
+    <title>刹那の見切り（オンライン試作）</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body class="setsuna-body">
     <div id="app" class="game-shell">
-      <!-- 上部ヘッダ -->
       <header class="game-header">
-        <div class="game-title">刹那の見切り（試作）</div>
-        <div class="game-state" id="game-state">state: idle</div>
+        <div class="game-title">刹那の見切り（オンライン試作）</div>
+        <div class="game-state" id="game-state">state: init</div>
       </header>
 
-      <!-- ★ 上部ステータスバー（共通ゲージ＋HP） -->
+      <!-- ステータスバー（共通ゲージ＋HP） -->
       <section class="status-bar">
-        <!-- 共通ゲージ -->
         <div class="common-gauge-wrap">
           <div class="common-gauge-label">
             共通ゲージ
@@ -27,7 +25,6 @@
           </div>
         </div>
 
-        <!-- HP2本 -->
         <div class="hp-row">
           <div class="hp-block">
             <div class="hp-label">YOU</div>
@@ -44,42 +41,30 @@
         </div>
       </section>
 
-      <!-- メイン表示領域 -->
+      <!-- メイン表示 -->
       <main class="game-main">
         <div id="alert-area" class="alert-area">
           <div id="alert-symbol" class="alert-symbol"></div>
           <div id="alert-text" class="alert-text"></div>
         </div>
 
-        <!-- タイムバー（防御時だけ表示） -->
         <div id="timer-bar-wrap" class="timer-bar-wrap hidden">
           <div id="timer-bar" class="timer-bar"></div>
         </div>
 
-        <!-- ログ -->
         <div id="log-area" class="log-area"></div>
       </main>
 
-      <!-- コントロール領域（タップで斬る） -->
+      <!-- 操作 -->
       <footer class="game-footer">
-        <button id="attack-btn" class="primary-btn">斬る / COUNTER (タップ or Space)</button>
+        <button id="attack-btn" class="primary-btn" disabled>斬る / カウンター</button>
       </footer>
 
-      <!-- デバッグパネル -->
+      <!-- デバッグ（仮の敵は削除） -->
       <section class="debug-panel" id="debug-panel">
         <h2>Debug</h2>
         <div class="debug-row">
-          <button id="fake-enemy-attack-btn">相手が斬ってきた！</button>
-        </div>
-        <div class="debug-row">
-          <label>敵の反応速度:
-            <select id="enemy-speed-select">
-              <option value="fast">fast (0.15s)</option>
-              <option value="normal" selected>normal (0.25s)</option>
-              <option value="slow">slow (0.4s)</option>
-              <option value="random">random (0.15〜0.45)</option>
-            </select>
-          </label>
+          <span id="net-status-label">ネットワーク: 未接続</span>
         </div>
         <div class="debug-row">
           <label>自分の防御受付(ms):
@@ -90,23 +75,22 @@
       </section>
     </div>
 
-    <script type="module" src="./game.js?v=20251103"></script>
-    <!-- Firebase SDKs (Realtime Database 用) -->
+    <!-- Firebaseはここに自分のを入れる。まだなければコメントのままでOK -->
+    <!--
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js"></script>
     <script>
       const firebaseConfig = {
-        // TODO: 自分のやつ
+        // TODO: 自分のやつに差し替え
       };
       const app = firebase.initializeApp(firebaseConfig);
-      const rtdb = firebase.database();
-      window.__SETUNA_RTDB__ = rtdb;
+      window.__SETUNA_RTDB__ = firebase.database();
     </script>
     -->
 
-    <!-- ネット周り（なくてもいい） -->
-    <script type="module" src="./setsuna-net.js?v=20251103"></script>
-    <!-- ゲーム本体（必ず最後） -->
-    <script type="module" src="./game.js?v=20251103"></script>
+    <!-- ネット層 -->
+    <script type="module" src="./setsuna-net.js?v=20251103-online"></script>
+    <!-- ゲーム本体 -->
+    <script type="module" src="./game.js?v=20251103-online"></script>
   </body>
 </html>

@@ -1,9 +1,9 @@
 // setsuna-net.js
-// ネットがあればRTDBで待機→ルームへ、なければローカルで即マッチとして返す
+// Firebase RTDBがあればオンライン、なければ「オンライン未設定」として待つだけ
 
 const RTDB = window.__SETUNA_RTDB__ || null;
 
-// どの端末かを区別するためのID
+// 端末ごとに固定のID
 const LOCAL_PLAYER_KEY = "setsuna_player_id";
 let playerId = localStorage.getItem(LOCAL_PLAYER_KEY);
 if (!playerId) {
@@ -11,140 +11,163 @@ if (!playerId) {
   localStorage.setItem(LOCAL_PLAYER_KEY, playerId);
 }
 
-// ゲームから渡してもらうハンドラ
-let onSlashHandler = () => {};
-let onSlashResultHandler = () => {};
-let onMatchedHandler = () => {};
+// コールバック置き場
+let onMatchedCb = () => {};
+let onRemoteSlashCb = () => {};
+let onRemoteSlashResultCb = () => {};
+let onStatusCb = () => {};
 
-function setOnSlash(cb) {
-  onSlashHandler = cb;
+function onMatched(cb) {
+  onMatchedCb = cb;
 }
-function setOnSlashResult(cb) {
-  onSlashResultHandler = cb;
+function onRemoteSlash(cb) {
+  onRemoteSlashCb = cb;
 }
-function setOnMatched(cb) {
-  onMatchedHandler = cb;
+function onRemoteSlashResult(cb) {
+  onRemoteSlashResultCb = cb;
+}
+function onStatus(cb) {
+  onStatusCb = cb;
 }
 
-// ==== RTDBがない場合はローカルマッチ扱い ====
+// RTDBがないとき → 何もしない
 if (!RTDB) {
-  console.log("[setsuna-net] RTDBなし → ローカルマッチモード");
-  // windowに公開
+  console.warn("[setsuna-net] Firebaseが無いのでオンライン対戦は無効です");
   window.SetsunaNet = {
-    mode: "local",
+    mode: "offline",
     playerId,
     joinMatchmaking() {
-      console.log("[setsuna-net] ローカルでマッチング成功");
-      onMatchedHandler &&
-        onMatchedHandler({ roomId: "local-room", slot: "p1", mode: "local" });
+      // 成功は絶対に言わない
+      onStatusCb && onStatusCb({ state: "offline", reason: "RTDB not configured" });
     },
-    sendSlash(payload) {
-      // 相手がいないのでそのまま「相手が斬ってきた」として呼ぶ
-      console.log("[setsuna-net] (local) sendSlash → onSlashHandler");
-      onSlashHandler && onSlashHandler(payload);
+    sendSlash() {
+      // 送れない
     },
-    sendSlashResult(payload) {
-      console.log("[setsuna-net] (local) sendSlashResult → onSlashResultHandler");
-      onSlashResultHandler && onSlashResultHandler(payload);
+    sendSlashResult() {
+      // 送れない
     },
-    onRemoteSlash: setOnSlash,
-    onRemoteSlashResult: setOnSlashResult,
-    onMatched: setOnMatched,
+    onMatched,
+    onRemoteSlash,
+    onRemoteSlashResult,
+    onStatus,
   };
 } else {
-  // ==== ここから下がRTDBあり版（今回は最小） ====
-  console.log("[setsuna-net] RTDBあり → オンライン待機モード");
+  // ===== RTDBあり（オンライン） =====
 
   const waitingRef = RTDB.ref("setsuna/waiting");
   const roomsRef = RTDB.ref("setsuna/rooms");
+  const playerRoomsRef = RTDB.ref("setsuna/playerRooms");
 
   let currentRoomId = null;
   let currentSlot = null;
 
   async function joinMatchmaking() {
-    // すごく雑な2人マッチ
+    onStatusCb && onStatusCb({ state: "connecting" });
+
+    let matchedWith = null;
+
     await waitingRef.transaction(
       (cur) => {
         if (cur === null) {
-          // 誰もいなければ自分が待機
+          // 誰も待ってなければ自分が待機になる
           return { playerId, ts: Date.now() };
         } else if (cur.playerId === playerId) {
-          // 自分がすでに待ってる
+          // 自分がもう待ってる
           return cur;
         } else {
-          // 誰かが待ってるのでこの場で消す（=マッチ成立）
+          // 他の人がいた → この人とマッチさせるので待機を空にする
+          matchedWith = cur.playerId;
           return null;
         }
       },
       async (err, committed, snap) => {
         if (err) {
-          console.error("[setsuna-net] matchmaking error", err);
+          console.error("[setsuna-net] transaction error", err);
+          onStatusCb && onStatusCb({ state: "error", error: err.message });
           return;
         }
 
-        const val = snap.val();
-
-        // val === null → いま2人目として入った
-        if (val === null) {
-          // 2人目側：新しい部屋を作る
-          const roomId = "room_" + Date.now();
+        // ここで matchedWith が入っていれば “自分が2人目”
+        if (matchedWith) {
+          // ルームを作る
+          const roomId = "room_" + matchedWith + "_" + playerId + "_" + Date.now();
           currentRoomId = roomId;
           currentSlot = "p2";
 
           await roomsRef.child(roomId).set({
             createdAt: Date.now(),
             players: {
-              p2: { playerId, joinedAt: Date.now() },
+              p1: { id: matchedWith },
+              p2: { id: playerId },
             },
             signals: {},
           });
 
-          startRoomListeners(roomId, "p2");
-          console.log("[setsuna-net] マッチング成功（2人目） room:", roomId);
-          onMatchedHandler &&
-            onMatchedHandler({ roomId, slot: "p2", mode: "online" });
+          // 2人とも自分の部屋を知れるようにする
+          await playerRoomsRef.child(matchedWith).set(roomId);
+          await playerRoomsRef.child(playerId).set(roomId);
+
+          // 自分は即マッチ成立
+          onStatusCb && onStatusCb({ state: "matched", roomId, slot: "p2" });
+          onMatchedCb && onMatchedCb({ roomId, slot: "p2" });
+
+          startRoomSignalListeners(roomId, "p2");
         } else {
-          // 1人目側：誰かが入ってくるのを待つ
-          currentRoomId = null;
-          currentSlot = "p1";
-          console.log("[setsuna-net] 待機に入りました。別の端末が来るのを待ちます…");
-          // 本当はroomsを監視してp1としてjoinを検知する
-          // 簡易版では自分で自分をマッチ済み扱いにする
-          onMatchedHandler &&
-            onMatchedHandler({ roomId: "room_waiting", slot: "p1", mode: "online-wait" });
+          // ここに来たのは “自分が先に待ってる側”
+          onStatusCb && onStatusCb({ state: "waiting" });
+
+          // 誰かが自分とマッチしたら /playerRooms/{playerId} に書かれるのでそれを待つ
+          playerRoomsRef.child(playerId).on("value", (snap) => {
+            const roomId = snap.val();
+            if (!roomId) return;
+            currentRoomId = roomId;
+            // 自分が先に待ってたのでslotはp1
+            currentSlot = "p1";
+
+            onStatusCb && onStatusCb({ state: "matched", roomId, slot: "p1" });
+            onMatchedCb && onMatchedCb({ roomId, slot: "p1" });
+
+            startRoomSignalListeners(roomId, "p1");
+          });
         }
       }
     );
   }
 
-  function startRoomListeners(roomId, mySlot) {
+  function startRoomSignalListeners(roomId, mySlot) {
     const otherSlot = mySlot === "p1" ? "p2" : "p1";
-    const slashRef = roomsRef.child(roomId).child("signals").child(otherSlot + "_slash");
-    const resultRef = roomsRef.child(roomId).child("signals").child(otherSlot + "_result");
+    const oppSlashRef = roomsRef.child(roomId).child("signals").child(otherSlot + "_slash");
+    const oppResultRef = roomsRef.child(roomId).child("signals").child(otherSlot + "_result");
 
-    slashRef.on("value", (snap) => {
+    oppSlashRef.on("value", (snap) => {
       const val = snap.val();
       if (!val) return;
-      console.log("[setsuna-net] 相手がslashした:", val);
-      onSlashHandler && onSlashHandler(val);
+      onRemoteSlashCb && onRemoteSlashCb(val);
     });
 
-    resultRef.on("value", (snap) => {
+    oppResultRef.on("value", (snap) => {
       const val = snap.val();
       if (!val) return;
-      console.log("[setsuna-net] 相手がslash_result:", val);
-      onSlashResultHandler && onSlashResultHandler(val);
+      onRemoteSlashResultCb && onRemoteSlashResultCb(val);
     });
   }
 
   function sendSlash(payload) {
     if (!currentRoomId || !currentSlot) return;
-    roomsRef.child(currentRoomId).child("signals").child(currentSlot + "_slash").set(payload);
+    roomsRef
+      .child(currentRoomId)
+      .child("signals")
+      .child(currentSlot + "_slash")
+      .set(payload);
   }
 
   function sendSlashResult(payload) {
     if (!currentRoomId || !currentSlot) return;
-    roomsRef.child(currentRoomId).child("signals").child(currentSlot + "_result").set(payload);
+    roomsRef
+      .child(currentRoomId)
+      .child("signals")
+      .child(currentSlot + "_result")
+      .set(payload);
   }
 
   window.SetsunaNet = {
@@ -153,8 +176,9 @@ if (!RTDB) {
     joinMatchmaking,
     sendSlash,
     sendSlashResult,
-    onRemoteSlash: setOnSlash,
-    onRemoteSlashResult: setOnSlashResult,
-    onMatched: setOnMatched,
+    onMatched,
+    onRemoteSlash,
+    onRemoteSlashResult,
+    onStatus,
   };
 }
