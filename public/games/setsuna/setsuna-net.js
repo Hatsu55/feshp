@@ -1,16 +1,20 @@
 // setsuna-net.js
-// 役割: マッチング / ラウンド管理(roundId) / 信号送受信
-// 仕様: すべての信号に roundId を付け、現在の roundId と一致したものだけ処理。
-//       再戦時は roundId を更新し、/signals をクリア。
+// Firebase RTDB を使った 2人マッチング＋ラウンド管理（roundId）＋再戦投票
 
 const RTDB = window.__SETUNA_RTDB__ || null;
 
+// プレイヤーID（端末ごとに固定）
 const LOCAL_PLAYER_KEY = "setsuna_player_id";
 let playerId = localStorage.getItem(LOCAL_PLAYER_KEY);
 if (!playerId) {
   playerId = "p_" + Math.random().toString(36).slice(2);
   localStorage.setItem(LOCAL_PLAYER_KEY, playerId);
 }
+
+// RTDB 参照
+const waitingRef = RTDB ? RTDB.ref("setsuna/waiting") : null;
+const roomsRef = RTDB ? RTDB.ref("setsuna/rooms") : null;
+const playerRoomsRef = RTDB ? RTDB.ref("setsuna/playerRooms") : null;
 
 // コールバック
 let onMatchedCb = () => {};
@@ -19,6 +23,17 @@ let onRemoteSlashCb = () => {};
 let onRemoteSlashResultCb = () => {};
 let onRoundChangedCb = () => {};
 
+// 現在のルーム情報
+let currentRoomId = null;
+let currentSlot = null;   // "p1" | "p2"
+let currentRoundId = null;
+
+// ラウンドID生成
+function makeRoundId() {
+  return `r_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// ===== 公開API =====
 export const net = {
   mode: RTDB ? "online" : "offline",
   playerId,
@@ -35,82 +50,97 @@ export const net = {
 };
 
 if (!RTDB) {
-  console.warn("[setsuna-net] Firebase未設定。オンライン不可。");
+  console.warn("[setsuna-net] Firebase 未設定のためオンライン対戦は無効です");
 }
 
-// ルーム関連
-const waitingRef = RTDB ? RTDB.ref("setsuna/waiting") : null;
-const roomsRef = RTDB ? RTDB.ref("setsuna/rooms") : null;
-const playerRoomsRef = RTDB ? RTDB.ref("setsuna/playerRooms") : null;
-
-let currentRoomId = null;
-let currentSlot = null; // "p1" | "p2"
-let currentRoundId = null;
-let slashRef = null;
-let resultRef = null;
-
-function makeRoundId() {
-  return `r_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-// ===== マッチング =====
+// ===== マッチング処理 =====
 async function joinMatchmaking() {
   if (!RTDB) {
     onStatusCb && onStatusCb({ state: "offline" });
     return;
   }
+
+  // 前回のルーム紐付けが残っていると「1台で即マッチ」になるので消しておく
+  await playerRoomsRef.child(playerId).remove().catch(() => {});
+
   onStatusCb && onStatusCb({ state: "connecting" });
 
   let matchedWith = null;
+  let becameWaiting = false;
 
   await waitingRef.transaction(
     (cur) => {
-      if (cur === null) return { playerId, ts: Date.now() }; // 自分が待つ
-      if (cur.playerId === playerId) return cur; // 既に待機中
-      matchedWith = cur.playerId; // 相手がいた
-      return null; // 取り除いてマッチ確定
+      if (cur === null) {
+        // 誰も待っていない → 自分が待機に入る
+        becameWaiting = true;
+        return { playerId, ts: Date.now() };
+      } else if (cur.playerId === playerId) {
+        // すでに自分が待機している
+        becameWaiting = true;
+        return cur;
+      } else {
+        // 他の人が待っていた → この人とマッチさせる
+        matchedWith = cur.playerId;
+        return null; // 待機枠を空にする
+      }
     },
     async (err, committed, snap) => {
       if (err) {
+        console.error("[setsuna-net] matchmaking transaction error", err);
         onStatusCb && onStatusCb({ state: "error", error: err.message });
         return;
       }
 
+      // マッチ相手が決まっているなら、自分は 2人目（p2）
       if (matchedWith) {
-        // 自分は2人目（p2）。ルーム作成者。
         const roomId = `room_${matchedWith}_${playerId}_${Date.now()}`;
         currentRoomId = roomId;
         currentSlot = "p2";
         currentRoundId = makeRoundId();
 
+        // ルーム作成
         await roomsRef.child(roomId).set({
           createdAt: Date.now(),
-          players: { p1: { id: matchedWith }, p2: { id: playerId } },
+          players: {
+            p1: { id: matchedWith },
+            p2: { id: playerId },
+          },
           roundId: currentRoundId,
-          signals: {}, // 空で開始
+          signals: {},
+          rematchVotes: {},
         });
+
         await playerRoomsRef.child(matchedWith).set(roomId);
         await playerRoomsRef.child(playerId).set(roomId);
+        playerRoomsRef.child(playerId).onDisconnect().remove();
+        waitingRef.onDisconnect().cancel && waitingRef.onDisconnect().cancel();
 
         onStatusCb && onStatusCb({ state: "matched", roomId, slot: "p2" });
         onMatchedCb && onMatchedCb({ roomId, slot: "p2" });
         onRoundChangedCb && onRoundChangedCb(currentRoundId);
 
         startRoomListeners(roomId, "p2");
-      } else {
-        // 自分は先に待っている側（p1）
-        currentSlot = "p1";
+      } else if (becameWaiting) {
+        // 自分が待機側（p1）
         onStatusCb && onStatusCb({ state: "waiting" });
 
-        playerRoomsRef.child(playerId).on("value", async (snap) => {
-          const roomId = snap.val();
+        // 接続が切れたら待機を自動解除
+        try {
+          waitingRef.onDisconnect().set(null);
+          playerRoomsRef.child(playerId).onDisconnect().remove();
+        } catch (_) {}
+
+        // 自分がマッチングされたら /playerRooms/{playerId} に roomId が書かれる
+        playerRoomsRef.child(playerId).on("value", async (snap2) => {
+          const roomId = snap2.val();
           if (!roomId || currentRoomId) return;
 
           currentRoomId = roomId;
+          currentSlot = "p1";
 
-          // roomの roundId を取得
           const roomSnap = await roomsRef.child(roomId).get();
-          currentRoundId = roomSnap.val()?.roundId || makeRoundId();
+          const roomVal = roomSnap.val() || {};
+          currentRoundId = roomVal.roundId || makeRoundId();
 
           onStatusCb && onStatusCb({ state: "matched", roomId, slot: "p1" });
           onMatchedCb && onMatchedCb({ roomId, slot: "p1" });
@@ -118,16 +148,19 @@ async function joinMatchmaking() {
 
           startRoomListeners(roomId, "p1");
         });
+      } else {
+        // ここに来ることはほぼない（念のため）
+        onStatusCb && onStatusCb({ state: "waiting" });
       }
     }
   );
 }
 
-// ===== リスナーと信号クリア =====
+// ===== ルーム内リスナー =====
 function startRoomListeners(roomId, mySlot) {
   const other = mySlot === "p1" ? "p2" : "p1";
 
-  // ラウンド変更の監視
+  // roundId 変更監視（再戦など）
   roomsRef.child(roomId).child("roundId").on("value", (snap) => {
     const rid = snap.val();
     if (!rid || rid === currentRoundId) return;
@@ -135,27 +168,46 @@ function startRoomListeners(roomId, mySlot) {
     onRoundChangedCb && onRoundChangedCb(currentRoundId);
   });
 
-  // 自分が受け取る相手の信号
-  slashRef = roomsRef.child(roomId).child("signals").child(`${other}_slash`);
-  resultRef = roomsRef.child(roomId).child("signals").child(`${other}_result`);
+  // 相手の slash / result を監視
+  const oppSlashRef = roomsRef.child(roomId).child("signals").child(`${other}_slash`);
+  const oppResultRef = roomsRef.child(roomId).child("signals").child(`${other}_result`);
 
-  slashRef.on("value", (snap) => {
+  oppSlashRef.on("value", (snap) => {
     const val = snap.val();
     if (!val) return;
-    // ラウンド不一致は無視
-    if (!val.roundId || val.roundId !== currentRoundId) return;
+    if (!val.roundId || val.roundId !== currentRoundId) return; // 古いラウンドは無視
     onRemoteSlashCb && onRemoteSlashCb(val);
   });
 
-  resultRef.on("value", (snap) => {
+  oppResultRef.on("value", (snap) => {
     const val = snap.val();
     if (!val) return;
     if (!val.roundId || val.roundId !== currentRoundId) return;
     onRemoteSlashResultCb && onRemoteSlashResultCb(val);
   });
+
+  // 再戦投票の監視
+  const votesRef = roomsRef.child(roomId).child("rematchVotes");
+  votesRef.on("value", (snap) => {
+    const votes = snap.val() || {};
+    const p1 = !!votes.p1;
+    const p2 = !!votes.p2;
+
+    // 両方 true になったタイミングで、新ラウンドを開始する。
+    // 実際に roundId を更新するのは p1 だけにしてレースを避ける。
+    if (p1 && p2 && mySlot === "p1") {
+      const newId = makeRoundId();
+      roomsRef.child(roomId).update({
+        roundId: newId,
+        signals: null,
+        rematchVotes: null,
+      });
+      // currentRoundId 自体は roundId リスナーで更新される
+    }
+  });
 }
 
-// ===== 送信 =====
+// ===== 信号送信 =====
 function sendSlash(payload) {
   if (!RTDB || !currentRoomId || !currentSlot || !currentRoundId) return;
   roomsRef
@@ -174,15 +226,12 @@ function sendSlashResult(payload) {
     .set({ ...payload, roundId: currentRoundId });
 }
 
-// ===== 再戦要求（新しい roundId を発行し、signals をクリア） =====
+// ===== 再戦ボタン → 自分の投票だけ true にする =====
 async function requestRematch() {
-  if (!RTDB || !currentRoomId) return;
-  const newId = makeRoundId();
-  await roomsRef.child(currentRoomId).update({
-    roundId: newId,
-    signals: null, // まるごとクリア
-  });
-  // 自分側も即時更新（on('value')でも入ってくるが体感を良くする）
-  currentRoundId = newId;
-  onRoundChangedCb && onRoundChangedCb(currentRoundId);
+  if (!RTDB || !currentRoomId || !currentSlot) return;
+  await roomsRef
+    .child(currentRoomId)
+    .child("rematchVotes")
+    .child(currentSlot)
+    .set(true);
 }
