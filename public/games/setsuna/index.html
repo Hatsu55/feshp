@@ -14,10 +14,39 @@
         <div class="game-state" id="game-state">state: idle</div>
       </header>
 
+      <!-- ★ 上部ステータスバー（共通ゲージ＋HP） -->
+      <section class="status-bar">
+        <!-- 共通ゲージ -->
+        <div class="common-gauge-wrap">
+          <div class="common-gauge-label">
+            共通ゲージ
+            <span id="common-gauge-value" class="gauge-value">0%</span>
+          </div>
+          <div class="common-gauge-track">
+            <div id="common-gauge-fill" class="common-gauge-fill"></div>
+          </div>
+        </div>
+
+        <!-- HP2本 -->
+        <div class="hp-row">
+          <div class="hp-block">
+            <div class="hp-label">YOU</div>
+            <div class="hp-track">
+              <div id="hp-you" class="hp-fill hp-you"></div>
+            </div>
+          </div>
+          <div class="hp-block">
+            <div class="hp-label">ENEMY</div>
+            <div class="hp-track">
+              <div id="hp-enemy" class="hp-fill hp-enemy"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- メイン表示領域 -->
       <main class="game-main">
         <div id="alert-area" class="alert-area">
-          <!-- ここに「！」や結果テキストが出る -->
           <div id="alert-symbol" class="alert-symbol"></div>
           <div id="alert-text" class="alert-text"></div>
         </div>
