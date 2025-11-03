@@ -87,11 +87,11 @@ function updateHpView() {
 
 // ===== ゲージ→ダメージ変換 =====
 // 今回はHPが10000なので、100段階で細かく刻みます。
-// 0〜100% → 10段階 → 333 * (1〜11) = 100〜1100ダメ
+// 0〜100% → 100段階 → 100 * (1〜101) = 100〜11000ダメ
 function calcDamageFromCharge(chargePct) {
-  const c = Math.max(0, Math.min(100, Math.floor(chargePct)));
-  const step = Math.floor(c / 100); // 0〜100
-  return 333 * (1 + step);
+  const c = Math.max(0, Math.min(1000, Math.floor(chargePct)));
+  const step = Math.floor(c / 10); // 0〜10
+  return 100 * (1 + step);
 }
 
 // この攻撃が確定したのでゲージを使い切る
