@@ -76,17 +76,22 @@
     </div>
 
     <!-- Firebaseはここに自分のを入れる。まだなければコメントのままでOK -->
-    <!--
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js"></script>
     <script>
-      const firebaseConfig = {
-        // TODO: 自分のやつに差し替え
-      };
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        const firebaseConfig = {
+        apiKey: "AIzaSyCTcZBud_-qQAS0yHlpLucXc6W_zuWekRM",
+        authDomain: "feshp-setsuna.firebaseapp.com",
+        projectId: "feshp-setsuna",
+        storageBucket: "feshp-setsuna.firebasestorage.app",
+        messagingSenderId: "94872154277",
+        appId: "1:94872154277:web:ef05a5cf3d072ed5561d4c",
+        measurementId: "G-6PBBCEV25F"
+        };
       const app = firebase.initializeApp(firebaseConfig);
       window.__SETUNA_RTDB__ = firebase.database();
     </script>
-    -->
 
     <!-- ネット層 -->
     <script type="module" src="./setsuna-net.js?v=20251103-online"></script>
