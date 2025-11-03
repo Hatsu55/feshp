@@ -1,4 +1,4 @@
-// game.js（共通ゲージ＋HP付き）
+// game.js（チャージ量でダメージが上がる版）
 
 const STATE = {
   IDLE: "idle",
@@ -8,24 +8,23 @@ const STATE = {
 };
 
 let state = STATE.IDLE;
-// 攻撃側 or 防御側
 let currentRole = null;
 
-// ゲージ・HP（ローカル版）-------------------------
-let commonGauge = 0; // 0〜100
+// ===== ゲージ・HP（ローカル）=====
+let commonGauge = 0; // 0〜100でチャージ
 const COMMON_GAUGE_MAX = 100;
-// 斬るのに最低必要なゲージ量（あとで調整可）
-const COMMON_GAUGE_COST = 30;
+let commonGaugeTimerId = null;
 
-// HPはとりあえず10で持つ（1ヒットで-3くらい）
-let hpYou = 10;
-let hpEnemy = 10;
+// HPはとりあえず10固定
 const HP_MAX = 10;
+let hpYou = HP_MAX;
+let hpEnemy = HP_MAX;
 
-// タイマー
+// タイマー類
 let defendTimeoutId = null;
 let resultTimeoutId = null;
-let commonGaugeTimerId = null;
+
+// 防御受付
 let currentDefendWindow = 300; // ms
 let enemyReactionMode = "normal"; // fast / normal / slow / random
 
@@ -41,13 +40,12 @@ const defendWindowRange = document.getElementById("defend-window-range");
 const defendWindowLabel = document.getElementById("defend-window-label");
 const timerBarWrap = document.getElementById("timer-bar-wrap");
 const timerBar = document.getElementById("timer-bar");
-// 新しく追加したDOM
 const commonGaugeFill = document.getElementById("common-gauge-fill");
 const commonGaugeValue = document.getElementById("common-gauge-value");
 const hpYouEl = document.getElementById("hp-you");
 const hpEnemyEl = document.getElementById("hp-enemy");
 
-// ===== util =====
+// ====== 基本ユーティリティ ======
 function setState(next) {
   state = next;
   gameStateEl.textContent = `state: ${next}`;
@@ -61,38 +59,47 @@ function log(msg) {
 function showAlert(symbol, text, color) {
   alertSymbolEl.textContent = symbol || "";
   alertTextEl.textContent = text || "";
-  if (color) {
-    alertTextEl.style.color = color;
-  } else {
-    alertTextEl.style.color = "inherit";
-  }
+  alertTextEl.style.color = color || "inherit";
 }
 
 function enableAttackBtn(enabled) {
   attackBtn.disabled = !enabled;
 }
 
-// ===== ゲージ・HPの更新表示 =====
+// ====== ゲージ表示 ======
 function updateCommonGaugeView() {
   const pct = Math.min(Math.max(commonGauge, 0), COMMON_GAUGE_MAX);
   commonGaugeFill.style.width = `${pct}%`;
   commonGaugeValue.textContent = `${Math.floor(pct)}%`;
 }
 
+// ====== HP表示 ======
 function updateHpView() {
-  const youPct = Math.max(0, (hpYou / HP_MAX) * 100);
-  const enemyPct = Math.max(0, (hpEnemy / HP_MAX) * 100);
-  hpYouEl.style.width = `${youPct}%`;
-  hpEnemyEl.style.width = `${enemyPct}%`;
+  hpYouEl.style.width = `${Math.max(0, (hpYou / HP_MAX) * 100)}%`;
+  hpEnemyEl.style.width = `${Math.max(0, (hpEnemy / HP_MAX) * 100)}%`;
 }
 
-// ===== 共通ゲージを時間で増やす =====
+// ====== ダメージ計算（チャージ量で変化） ======
+function calcDamageFromGauge() {
+  // 0〜100% → 1〜6ダメにする
+  // 20%ごとに+1
+  const charge = Math.floor(commonGauge);
+  const bonus = Math.floor(charge / 20); // 0〜5
+  return 1 + bonus; // 最低1
+}
+
+// この斬撃で使ったからゲージを0にする
+function consumeGaugeAfterAttack() {
+  commonGauge = 0;
+  updateCommonGaugeView();
+}
+
+// ====== ゲージを時間で溜める ======
 function startCommonGaugeLoop() {
   if (commonGaugeTimerId) return;
   commonGaugeTimerId = setInterval(() => {
-    // 0.1秒に1%増える → 約10秒で満タン
     if (commonGauge < COMMON_GAUGE_MAX) {
-      commonGauge += 1;
+      commonGauge += 1; // 0.1秒ごとに1% = 約10秒で満タン
       updateCommonGaugeView();
     }
   }, 100);
@@ -105,32 +112,24 @@ function stopCommonGaugeLoop() {
   }
 }
 
-// ===== あなたが攻撃する時 =====
+// ====== あなたが攻撃する時 ======
 function onAttack() {
-  if (state !== STATE.IDLE) {
-    return;
-  }
+  if (state !== STATE.IDLE) return;
 
-  // ★ ゲージ足りないときは攻撃させない
-  if (commonGauge < COMMON_GAUGE_COST) {
-    showAlert("×", "ゲージ不足！", "#facc15");
-    log(`ゲージが足りません (${Math.floor(commonGauge)}% / 必要${COMMON_GAUGE_COST}%)`);
-    return;
-  }
-
-  // 攻撃するのでゲージを消費
-  commonGauge = Math.max(0, commonGauge - COMMON_GAUGE_COST);
-  updateCommonGaugeView();
+  // 今回は「ゲージが少なくても斬れる」→ダメージだけ小さくなる
+  const dmg = calcDamageFromGauge();
+  log(`あなたが斬りました（予定ダメージ: ${dmg}）`);
 
   currentRole = "attacker";
 
-  mockSendSlash();
+  // 本来はここでRTDBにslashを書く
+  mockSendSlash(dmg);
 
   setState(STATE.ATTACK_WAIT);
   showAlert("斬", "相手の反応を待っています…", "#e2e8f0");
   enableAttackBtn(false);
 
-  // 450ms待っても帰ってこなかったらtimeout
+  // 相手からの結果待ちタイムアウト
   const TIMEOUT_MS = 450;
   setTimeout(() => {
     if (state === STATE.ATTACK_WAIT) {
@@ -139,7 +138,7 @@ function onAttack() {
   }, TIMEOUT_MS);
 }
 
-// ===== 相手が斬ってきた（防御に入る） =====
+// ====== 相手が斬ってきた（防御モード） ======
 function enterDefendMode() {
   clearTimers();
 
@@ -156,9 +155,11 @@ function enterDefendMode() {
   const windowMs = currentDefendWindow;
 
   defendTimeoutId = setTimeout(() => {
-    // 防御失敗 → 自分がダメージ
+    // 間に合わなかった → 攻撃側のチャージ分だけ食らう
+    const dmg = calcDamageFromGauge();
+    applyDamageTo("you", dmg);
+    consumeGaugeAfterAttack();
     mockSendSlashResult("hit");
-    applyDamageTo("you", 3);
     showResult("hit", "defender");
   }, windowMs);
 
@@ -175,30 +176,30 @@ function enterDefendMode() {
   requestAnimationFrame(tick);
 }
 
-// ===== 防御中にタップ（カウンター成功） =====
+// ====== 防御中にタップ（カウンター） ======
 function onDefendTap() {
   if (state !== STATE.DEFEND) return;
 
   clearTimeout(defendTimeoutId);
   defendTimeoutId = null;
 
+  const dmg = calcDamageFromGauge();
+  applyDamageTo("enemy", dmg);
+  consumeGaugeAfterAttack();
   mockSendSlashResult("counter");
-  // カウンター成功したら相手にダメージ
-  applyDamageTo("enemy", 3);
-
   showResult("counter", "defender");
 }
 
-// ===== ダメージ適用（ローカル版） =====
+// ====== ダメージ適用 ======
 function applyDamageTo(who, amount) {
+  if (amount <= 0) amount = 1;
   if (who === "you") {
     hpYou = Math.max(0, hpYou - amount);
     updateHpView();
     if (hpYou <= 0) {
-      // あなたの負け
       showAlert("×", "YOU LOSE", "#ef4444");
       log("あなたのHPが0になりました");
-      // ちょっと待ってからリセット
+      // 負け処理のときはここで終了していいが、簡単にリセット
       setTimeout(() => {
         resetBattle();
       }, 1200);
@@ -216,7 +217,7 @@ function applyDamageTo(who, amount) {
   }
 }
 
-// ===== 結果表示 =====
+// ====== 結果表示 ======
 function showResult(type, role = currentRole) {
   setState(STATE.RESULT);
   timerBarWrap.classList.add("hidden");
@@ -226,14 +227,20 @@ function showResult(type, role = currentRole) {
     if (type === "counter") {
       showAlert("防", "相手に防がれた！（カウンター）", "#ef4444");
       log("あなたの攻撃は相手に防がれました");
+      // カウンターされたときも今回のチャージは使い切る
+      consumeGaugeAfterAttack();
     } else if (type === "hit") {
-      showAlert("◎", "命中！", "#22c55e");
-      log("あなたの攻撃が命中しました");
-      // 命中したのでダメージ
-      applyDamageTo("enemy", 3);
+      // 攻撃が通った → ここでもう一回ダメージ適用（守備側でやるなら不要）
+      const dmg = calcDamageFromGauge();
+      applyDamageTo("enemy", dmg);
+      consumeGaugeAfterAttack();
+      showAlert("◎", `命中！（${dmg}ダメージ）`, "#22c55e");
+      log(`あなたの攻撃が命中しました（${dmg}ダメージ）`);
     } else if (type === "draw") {
       showAlert("＝", "相打ち", "#e2e8f0");
       log("相打ち");
+      // 相打ちのときはとりあえずゲージは維持でもいいが、ここでは消す
+      consumeGaugeAfterAttack();
     } else if (type === "timeout") {
       showAlert("…", "相手の反応がありません（中止）", "#f97316");
       log("相手の反応がなく中止になりました");
@@ -242,11 +249,9 @@ function showResult(type, role = currentRole) {
     if (type === "counter") {
       showAlert("◎", "カウンター成功！", "#22c55e");
       log("あなたのカウンター成功");
-      // カウンターのダメージはすでに onDefendTap で適用済み
     } else if (type === "hit") {
       showAlert("×", "被弾…", "#ef4444");
       log("あなたは被弾しました");
-      // 被弾のダメージは enterDefendMode内で適用済み
     } else if (type === "draw") {
       showAlert("＝", "相打ち", "#e2e8f0");
       log("相打ち");
@@ -258,7 +263,7 @@ function showResult(type, role = currentRole) {
     showAlert("＝", "結果: " + type, "#e2e8f0");
   }
 
-  // 1秒後にidleへ（ただしHPで終わってなければ）
+  // 勝敗がついてないときだけidleに戻す
   resultTimeoutId = setTimeout(() => {
     if (hpYou > 0 && hpEnemy > 0) {
       toIdle();
@@ -274,19 +279,16 @@ function toIdle() {
   enableAttackBtn(true);
 }
 
-// HP等すべて初期化
-function resetBattle() {
-  hpYou = HP_MAX;
-  hpEnemy = HP_MAX;
-  updateHpView();
-  commonGauge = 0;
-  updateCommonGaugeView();
-  toIdle();
+function clearTimers() {
+  if (defendTimeoutId) clearTimeout(defendTimeoutId);
+  defendTimeoutId = null;
+  if (resultTimeoutId) clearTimeout(resultTimeoutId);
+  resultTimeoutId = null;
 }
 
-// ===== モック通信層 =====
-function mockSendSlash() {
-  log("あなたが斬りました（mockSendSlash）");
+// ====== モック通信層 ======
+function mockSendSlash(expectedDamage) {
+  log(`mock: あなたが斬りました（想定ダメージ${expectedDamage}）`);
 
   const enemyDelay = getEnemyReactionMs();
 
@@ -304,22 +306,21 @@ function mockSendSlash() {
 }
 
 function mockSendSlashResult(result) {
-  log(`あなたが結果を返しました（mockSendSlashResult: ${result}）`);
+  log(`mock: あなたが結果を返しました（${result}）`);
 }
 
-// 相手があなたに slash を送ってきた想定
+// 相手があなたにslashしてきた想定
 function onRemoteSlash() {
-  log("相手があなたに斬ってきました（onRemoteSlash）");
-
+  log("mock: 相手があなたに斬ってきました");
   if (state === STATE.ATTACK_WAIT) {
+    // 同時斬り
     showResult("draw", null);
     return;
   }
-
   enterDefendMode();
 }
 
-// あなたが先に斬って、相手が結果を返してきたとき
+// 攻撃側として結果を受け取る
 function onRemoteSlashResult(result) {
   if (state !== STATE.ATTACK_WAIT) return;
   showResult(result, "attacker");
@@ -330,7 +331,7 @@ function onRemoteTimeout() {
   showResult("timeout", "attacker");
 }
 
-// 敵の反応時間を決める
+// ====== 敵の反応時間 ======
 function getEnemyReactionMs() {
   switch (enemyReactionMode) {
     case "fast":
@@ -348,7 +349,7 @@ function getEnemyReactionMs() {
   }
 }
 
-// ===== イベントバインド =====
+// ====== イベントバインド ======
 attackBtn.addEventListener("click", () => {
   if (state === STATE.DEFEND) {
     onDefendTap();
@@ -383,7 +384,17 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-// 初期化
+// ====== 初期化 ======
+function resetBattle() {
+  hpYou = HP_MAX;
+  hpEnemy = HP_MAX;
+  updateHpView();
+  commonGauge = 0;
+  updateCommonGaugeView();
+  toIdle();
+}
+
+// 読み込み時に必ずループを回す
 resetBattle();
 startCommonGaugeLoop();
-log("ゲームを開始しました。ゲージが溜まったら斬るボタンで攻撃できます。");
+log("ゲームを開始しました。ゲージが溜まるほどダメージが上がります。");
