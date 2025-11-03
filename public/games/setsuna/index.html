@@ -58,6 +58,7 @@
       <!-- 操作 -->
       <footer class="game-footer">
         <button id="attack-btn" class="primary-btn" disabled>斬る / カウンター</button>
+        <button id="rematch-btn" class="secondary-btn" disabled>再戦</button>
       </footer>
 
       <!-- Debug -->
@@ -75,11 +76,10 @@
       </section>
     </div>
 
-    <!-- ✅ Firebase SDK（※compat版を使う） -->
+    <!-- Firebase（compat版） -->
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
     <script>
-      // あなたの Firebase 設定
       const firebaseConfig = {
         apiKey: "AIzaSyCTcZBud_-qQAS0yHlpLucXc6W_zuWekRM",
         authDomain: "feshp-setsuna.firebaseapp.com",
@@ -90,20 +90,14 @@
         appId: "1:94872154277:web:ef05a5cf3d072ed5561d4c",
         measurementId: "G-6PBBCEV25F"
       };
-
-      // 初期化（compatなのでこの書き方でOK）
       const app = firebase.initializeApp(firebaseConfig);
       const rtdb = firebase.database();
-
-      // setsuna-net.js がここを見る
       window.__SETUNA_RTDB__ = rtdb;
-
-      console.log("[index.html] Firebase初期化OK", firebase.apps.length);
     </script>
 
     <!-- ネット層 -->
-    <script type="module" src="./setsuna-net.js?v=20251103-online"></script>
+    <script type="module" src="./setsuna-net.js?v=20251103-r1"></script>
     <!-- ゲーム本体 -->
-    <script type="module" src="./game.js?v=20251103-online"></script>
+    <script type="module" src="./game.js?v=20251103-r1"></script>
   </body>
 </html>

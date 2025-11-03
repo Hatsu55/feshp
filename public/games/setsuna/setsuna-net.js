@@ -1,9 +1,10 @@
 // setsuna-net.js
-// Firebase RTDBがあればオンライン、なければ「オンライン未設定」として待つだけ
+// 役割: マッチング / ラウンド管理(roundId) / 信号送受信
+// 仕様: すべての信号に roundId を付け、現在の roundId と一致したものだけ処理。
+//       再戦時は roundId を更新し、/signals をクリア。
 
 const RTDB = window.__SETUNA_RTDB__ || null;
 
-// 端末ごとに固定のID
 const LOCAL_PLAYER_KEY = "setsuna_player_id";
 let playerId = localStorage.getItem(LOCAL_PLAYER_KEY);
 if (!playerId) {
@@ -11,174 +12,177 @@ if (!playerId) {
   localStorage.setItem(LOCAL_PLAYER_KEY, playerId);
 }
 
-// コールバック置き場
+// コールバック
 let onMatchedCb = () => {};
+let onStatusCb = () => {};
 let onRemoteSlashCb = () => {};
 let onRemoteSlashResultCb = () => {};
-let onStatusCb = () => {};
+let onRoundChangedCb = () => {};
 
-function onMatched(cb) {
-  onMatchedCb = cb;
-}
-function onRemoteSlash(cb) {
-  onRemoteSlashCb = cb;
-}
-function onRemoteSlashResult(cb) {
-  onRemoteSlashResultCb = cb;
-}
-function onStatus(cb) {
-  onStatusCb = cb;
-}
+export const net = {
+  mode: RTDB ? "online" : "offline",
+  playerId,
+  joinMatchmaking,
+  sendSlash,
+  sendSlashResult,
+  requestRematch,
+  onMatched: (cb) => (onMatchedCb = cb),
+  onStatus: (cb) => (onStatusCb = cb),
+  onRemoteSlash: (cb) => (onRemoteSlashCb = cb),
+  onRemoteSlashResult: (cb) => (onRemoteSlashResultCb = cb),
+  onRoundChanged: (cb) => (onRoundChangedCb = cb),
+  getRoundId: () => currentRoundId,
+};
 
-// RTDBがないとき → 何もしない
 if (!RTDB) {
-  console.warn("[setsuna-net] Firebaseが無いのでオンライン対戦は無効です");
-  window.SetsunaNet = {
-    mode: "offline",
-    playerId,
-    joinMatchmaking() {
-      // 成功は絶対に言わない
-      onStatusCb && onStatusCb({ state: "offline", reason: "RTDB not configured" });
+  console.warn("[setsuna-net] Firebase未設定。オンライン不可。");
+}
+
+// ルーム関連
+const waitingRef = RTDB ? RTDB.ref("setsuna/waiting") : null;
+const roomsRef = RTDB ? RTDB.ref("setsuna/rooms") : null;
+const playerRoomsRef = RTDB ? RTDB.ref("setsuna/playerRooms") : null;
+
+let currentRoomId = null;
+let currentSlot = null; // "p1" | "p2"
+let currentRoundId = null;
+let slashRef = null;
+let resultRef = null;
+
+function makeRoundId() {
+  return `r_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// ===== マッチング =====
+async function joinMatchmaking() {
+  if (!RTDB) {
+    onStatusCb && onStatusCb({ state: "offline" });
+    return;
+  }
+  onStatusCb && onStatusCb({ state: "connecting" });
+
+  let matchedWith = null;
+
+  await waitingRef.transaction(
+    (cur) => {
+      if (cur === null) return { playerId, ts: Date.now() }; // 自分が待つ
+      if (cur.playerId === playerId) return cur; // 既に待機中
+      matchedWith = cur.playerId; // 相手がいた
+      return null; // 取り除いてマッチ確定
     },
-    sendSlash() {
-      // 送れない
-    },
-    sendSlashResult() {
-      // 送れない
-    },
-    onMatched,
-    onRemoteSlash,
-    onRemoteSlashResult,
-    onStatus,
-  };
-} else {
-  // ===== RTDBあり（オンライン） =====
-
-  const waitingRef = RTDB.ref("setsuna/waiting");
-  const roomsRef = RTDB.ref("setsuna/rooms");
-  const playerRoomsRef = RTDB.ref("setsuna/playerRooms");
-
-  let currentRoomId = null;
-  let currentSlot = null;
-
-  async function joinMatchmaking() {
-    onStatusCb && onStatusCb({ state: "connecting" });
-
-    let matchedWith = null;
-
-    await waitingRef.transaction(
-      (cur) => {
-        if (cur === null) {
-          // 誰も待ってなければ自分が待機になる
-          return { playerId, ts: Date.now() };
-        } else if (cur.playerId === playerId) {
-          // 自分がもう待ってる
-          return cur;
-        } else {
-          // 他の人がいた → この人とマッチさせるので待機を空にする
-          matchedWith = cur.playerId;
-          return null;
-        }
-      },
-      async (err, committed, snap) => {
-        if (err) {
-          console.error("[setsuna-net] transaction error", err);
-          onStatusCb && onStatusCb({ state: "error", error: err.message });
-          return;
-        }
-
-        // ここで matchedWith が入っていれば “自分が2人目”
-        if (matchedWith) {
-          // ルームを作る
-          const roomId = "room_" + matchedWith + "_" + playerId + "_" + Date.now();
-          currentRoomId = roomId;
-          currentSlot = "p2";
-
-          await roomsRef.child(roomId).set({
-            createdAt: Date.now(),
-            players: {
-              p1: { id: matchedWith },
-              p2: { id: playerId },
-            },
-            signals: {},
-          });
-
-          // 2人とも自分の部屋を知れるようにする
-          await playerRoomsRef.child(matchedWith).set(roomId);
-          await playerRoomsRef.child(playerId).set(roomId);
-
-          // 自分は即マッチ成立
-          onStatusCb && onStatusCb({ state: "matched", roomId, slot: "p2" });
-          onMatchedCb && onMatchedCb({ roomId, slot: "p2" });
-
-          startRoomSignalListeners(roomId, "p2");
-        } else {
-          // ここに来たのは “自分が先に待ってる側”
-          onStatusCb && onStatusCb({ state: "waiting" });
-
-          // 誰かが自分とマッチしたら /playerRooms/{playerId} に書かれるのでそれを待つ
-          playerRoomsRef.child(playerId).on("value", (snap) => {
-            const roomId = snap.val();
-            if (!roomId) return;
-            currentRoomId = roomId;
-            // 自分が先に待ってたのでslotはp1
-            currentSlot = "p1";
-
-            onStatusCb && onStatusCb({ state: "matched", roomId, slot: "p1" });
-            onMatchedCb && onMatchedCb({ roomId, slot: "p1" });
-
-            startRoomSignalListeners(roomId, "p1");
-          });
-        }
+    async (err, committed, snap) => {
+      if (err) {
+        onStatusCb && onStatusCb({ state: "error", error: err.message });
+        return;
       }
-    );
-  }
 
-  function startRoomSignalListeners(roomId, mySlot) {
-    const otherSlot = mySlot === "p1" ? "p2" : "p1";
-    const oppSlashRef = roomsRef.child(roomId).child("signals").child(otherSlot + "_slash");
-    const oppResultRef = roomsRef.child(roomId).child("signals").child(otherSlot + "_result");
+      if (matchedWith) {
+        // 自分は2人目（p2）。ルーム作成者。
+        const roomId = `room_${matchedWith}_${playerId}_${Date.now()}`;
+        currentRoomId = roomId;
+        currentSlot = "p2";
+        currentRoundId = makeRoundId();
 
-    oppSlashRef.on("value", (snap) => {
-      const val = snap.val();
-      if (!val) return;
-      onRemoteSlashCb && onRemoteSlashCb(val);
-    });
+        await roomsRef.child(roomId).set({
+          createdAt: Date.now(),
+          players: { p1: { id: matchedWith }, p2: { id: playerId } },
+          roundId: currentRoundId,
+          signals: {}, // 空で開始
+        });
+        await playerRoomsRef.child(matchedWith).set(roomId);
+        await playerRoomsRef.child(playerId).set(roomId);
 
-    oppResultRef.on("value", (snap) => {
-      const val = snap.val();
-      if (!val) return;
-      onRemoteSlashResultCb && onRemoteSlashResultCb(val);
-    });
-  }
+        onStatusCb && onStatusCb({ state: "matched", roomId, slot: "p2" });
+        onMatchedCb && onMatchedCb({ roomId, slot: "p2" });
+        onRoundChangedCb && onRoundChangedCb(currentRoundId);
 
-  function sendSlash(payload) {
-    if (!currentRoomId || !currentSlot) return;
-    roomsRef
-      .child(currentRoomId)
-      .child("signals")
-      .child(currentSlot + "_slash")
-      .set(payload);
-  }
+        startRoomListeners(roomId, "p2");
+      } else {
+        // 自分は先に待っている側（p1）
+        currentSlot = "p1";
+        onStatusCb && onStatusCb({ state: "waiting" });
 
-  function sendSlashResult(payload) {
-    if (!currentRoomId || !currentSlot) return;
-    roomsRef
-      .child(currentRoomId)
-      .child("signals")
-      .child(currentSlot + "_result")
-      .set(payload);
-  }
+        playerRoomsRef.child(playerId).on("value", async (snap) => {
+          const roomId = snap.val();
+          if (!roomId || currentRoomId) return;
 
-  window.SetsunaNet = {
-    mode: "online",
-    playerId,
-    joinMatchmaking,
-    sendSlash,
-    sendSlashResult,
-    onMatched,
-    onRemoteSlash,
-    onRemoteSlashResult,
-    onStatus,
-  };
+          currentRoomId = roomId;
+
+          // roomの roundId を取得
+          const roomSnap = await roomsRef.child(roomId).get();
+          currentRoundId = roomSnap.val()?.roundId || makeRoundId();
+
+          onStatusCb && onStatusCb({ state: "matched", roomId, slot: "p1" });
+          onMatchedCb && onMatchedCb({ roomId, slot: "p1" });
+          onRoundChangedCb && onRoundChangedCb(currentRoundId);
+
+          startRoomListeners(roomId, "p1");
+        });
+      }
+    }
+  );
+}
+
+// ===== リスナーと信号クリア =====
+function startRoomListeners(roomId, mySlot) {
+  const other = mySlot === "p1" ? "p2" : "p1";
+
+  // ラウンド変更の監視
+  roomsRef.child(roomId).child("roundId").on("value", (snap) => {
+    const rid = snap.val();
+    if (!rid || rid === currentRoundId) return;
+    currentRoundId = rid;
+    onRoundChangedCb && onRoundChangedCb(currentRoundId);
+  });
+
+  // 自分が受け取る相手の信号
+  slashRef = roomsRef.child(roomId).child("signals").child(`${other}_slash`);
+  resultRef = roomsRef.child(roomId).child("signals").child(`${other}_result`);
+
+  slashRef.on("value", (snap) => {
+    const val = snap.val();
+    if (!val) return;
+    // ラウンド不一致は無視
+    if (!val.roundId || val.roundId !== currentRoundId) return;
+    onRemoteSlashCb && onRemoteSlashCb(val);
+  });
+
+  resultRef.on("value", (snap) => {
+    const val = snap.val();
+    if (!val) return;
+    if (!val.roundId || val.roundId !== currentRoundId) return;
+    onRemoteSlashResultCb && onRemoteSlashResultCb(val);
+  });
+}
+
+// ===== 送信 =====
+function sendSlash(payload) {
+  if (!RTDB || !currentRoomId || !currentSlot || !currentRoundId) return;
+  roomsRef
+    .child(currentRoomId)
+    .child("signals")
+    .child(`${currentSlot}_slash`)
+    .set({ ...payload, roundId: currentRoundId });
+}
+
+function sendSlashResult(payload) {
+  if (!RTDB || !currentRoomId || !currentSlot || !currentRoundId) return;
+  roomsRef
+    .child(currentRoomId)
+    .child("signals")
+    .child(`${currentSlot}_result`)
+    .set({ ...payload, roundId: currentRoundId });
+}
+
+// ===== 再戦要求（新しい roundId を発行し、signals をクリア） =====
+async function requestRematch() {
+  if (!RTDB || !currentRoomId) return;
+  const newId = makeRoundId();
+  await roomsRef.child(currentRoomId).update({
+    roundId: newId,
+    signals: null, // まるごとクリア
+  });
+  // 自分側も即時更新（on('value')でも入ってくるが体感を良くする）
+  currentRoundId = newId;
+  onRoundChangedCb && onRoundChangedCb(currentRoundId);
 }

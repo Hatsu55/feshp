@@ -1,9 +1,7 @@
 // game.js
-// オンライン対戦前提版（仮の敵なし）
-// - マッチングするまで遊べません
-// - カウンター成功時はダメージ無効＋2倍返し
-// - HPは10000
-// - ダメージ式はあなたが調整していた 400*(1+step) を採用（0〜100を10段階）
+// ラウンド管理(roundId)＋再戦ボタン＋旧信号無視の実装
+
+import { net } from "./setsuna-net.js";
 
 const STATE = {
   INIT: "init",
@@ -44,6 +42,7 @@ const alertSymbolEl = document.getElementById("alert-symbol");
 const alertTextEl = document.getElementById("alert-text");
 const logAreaEl = document.getElementById("log-area");
 const attackBtn = document.getElementById("attack-btn");
+const rematchBtn = document.getElementById("rematch-btn");
 const defendWindowRange = document.getElementById("defend-window-range");
 const defendWindowLabel = document.getElementById("defend-window-label");
 const timerBarWrap = document.getElementById("timer-bar-wrap");
@@ -53,9 +52,6 @@ const commonGaugeValue = document.getElementById("common-gauge-value");
 const hpYouEl = document.getElementById("hp-you");
 const hpEnemyEl = document.getElementById("hp-enemy");
 const netStatusLabel = document.getElementById("net-status-label");
-
-// ネット
-const net = window.SetsunaNet;
 
 // ===== util =====
 function setState(next) {
@@ -74,6 +70,9 @@ function showAlert(symbol, text, color) {
 function enableAttackBtn(enabled) {
   attackBtn.disabled = !enabled;
 }
+function enableRematchBtn(enabled) {
+  rematchBtn.disabled = !enabled;
+}
 function updateCommonGaugeView() {
   const pct = Math.min(Math.max(commonGauge, 0), COMMON_GAUGE_MAX);
   commonGaugeFill.style.width = `${pct}%`;
@@ -90,23 +89,14 @@ function clearTimers() {
   resultTimeoutId = null;
 }
 
-// ===== ダメージ式（あなたが調整したもの） =====
-// 0〜100% → 10段階 → 400 * (1〜11) = 400〜4400
+// ===== ダメージ式（あなたの指定） =====
 function calcDamageFromCharge(chargePct) {
   const c = Math.max(0, Math.min(100, Math.floor(chargePct)));
   const step = Math.floor(c / 10); // 0〜10
-  return 400 * (1 + step);
+  return 400 * (1 + step); // 400〜4400
 }
 
-// ゲージ消費（このゲームは一撃ごとに使い切り）
-function consumeGaugeAfterAttack() {
-  commonGauge = 0;
-  updateCommonGaugeView();
-  pendingAttackCharge = 0;
-  pendingAttackDamage = 0;
-}
-
-// ===== ゲージを時間で溜める =====
+// ===== 共通ゲージループ =====
 function startCommonGaugeLoop() {
   if (commonGaugeTimerId) return;
   commonGaugeTimerId = setInterval(() => {
@@ -117,9 +107,8 @@ function startCommonGaugeLoop() {
   }, 100);
 }
 
-// ===== 攻撃する =====
+// ===== 攻撃 =====
 function onAttack() {
-  // マッチしてない、または待ちでは押せないようにする
   if (state !== STATE.IDLE) return;
 
   pendingAttackCharge = commonGauge;
@@ -131,29 +120,26 @@ function onAttack() {
   showAlert("斬", `相手の反応を待っています…（${pendingAttackDamage}）`, "#e2e8f0");
   log(`あなたが斬りました。ダメージ予定: ${pendingAttackDamage}`);
 
-  // ネットに送信
   net.sendSlash({
     damage: pendingAttackDamage,
     charge: pendingAttackCharge,
     ts: Date.now(),
   });
 
-  // 念のためのタイムアウト（相手が返してこなかったら）
   resultTimeoutId = setTimeout(() => {
     if (state === STATE.ATTACK_WAIT) {
       showResult("timeout", "attacker");
     }
-  }, 1000);
+  }, 1200);
 }
 
-// ===== 相手が斬ってきた（netから来る） =====
+// ===== 防御へ遷移（相手のslash受信時） =====
 function enterDefendModeFromRemote(payload) {
-  // もし自分も同じタイミングでATTACK_WAITだったら → 同時斬り
+  // roundId不一致は setsuna-net 側で弾いている。ここはラウンド一致のみ来る。
   if (state === STATE.ATTACK_WAIT) {
     showResult("draw", null);
     return;
   }
-
   clearTimers();
 
   currentRole = "defender";
@@ -172,13 +158,9 @@ function enterDefendModeFromRemote(payload) {
   const windowMs = currentDefendWindow;
 
   defendTimeoutId = setTimeout(() => {
-    // 防御失敗
     applyDamageTo("you", pendingAttackDamage);
     consumeGaugeAfterAttack();
-    net.sendSlashResult({
-      result: "hit",
-      ts: Date.now(),
-    });
+    net.sendSlashResult({ result: "hit", ts: Date.now() });
     showResult("hit", "defender");
   }, windowMs);
 
@@ -195,18 +177,13 @@ function enterDefendModeFromRemote(payload) {
 // ===== 防御中タップ（カウンター） =====
 function onDefendTap() {
   if (state !== STATE.DEFEND) return;
-
   clearTimeout(defendTimeoutId);
   defendTimeoutId = null;
 
   const reflected = pendingAttackDamage * 2;
   applyDamageTo("enemy", reflected);
   consumeGaugeAfterAttack();
-  net.sendSlashResult({
-    result: "counter",
-    damage: reflected,
-    ts: Date.now(),
-  });
+  net.sendSlashResult({ result: "counter", damage: reflected, ts: Date.now() });
   showResult("counter", "defender", reflected);
 }
 
@@ -219,7 +196,7 @@ function applyDamageTo(who, amount) {
     if (hpYou <= 0) {
       showAlert("×", "YOU LOSE", "#ef4444");
       log("あなたのHPが0になりました");
-      setTimeout(() => resetBattle(), 1500);
+      setTimeout(() => resetBattle(false), 1200);
     }
   } else {
     hpEnemy = Math.max(0, hpEnemy - amount);
@@ -227,7 +204,7 @@ function applyDamageTo(who, amount) {
     if (hpEnemy <= 0) {
       showAlert("◎", "YOU WIN!", "#22c55e");
       log("敵のHPが0になりました");
-      setTimeout(() => resetBattle(), 1500);
+      setTimeout(() => resetBattle(false), 1200);
     }
   }
 }
@@ -240,7 +217,6 @@ function showResult(type, role = currentRole, extraDamage = null) {
 
   if (role === "attacker") {
     if (type === "counter") {
-      // 相手にカウンターされた → 2倍食らう
       const reflected = pendingAttackDamage * 2;
       applyDamageTo("you", reflected);
       showAlert("防", `相手に防がれた！（カウンター${reflected}）`, "#ef4444");
@@ -249,7 +225,7 @@ function showResult(type, role = currentRole, extraDamage = null) {
     } else if (type === "hit") {
       applyDamageTo("enemy", pendingAttackDamage);
       showAlert("◎", `命中！（${pendingAttackDamage}）`, "#22c55e");
-      log(`攻撃が命中しました（${pendingAttackDamage}ダメージ）`);
+      log(`攻撃が命中（${pendingAttackDamage}ダメ）`);
       consumeGaugeAfterAttack();
     } else if (type === "draw") {
       showAlert("＝", "相打ち", "#e2e8f0");
@@ -257,28 +233,25 @@ function showResult(type, role = currentRole, extraDamage = null) {
       consumeGaugeAfterAttack();
     } else if (type === "timeout") {
       showAlert("…", "相手の反応がありません（中止）", "#f97316");
-      log("相手から結果が返ってこなかったため中止しました");
+      log("相手から結果が返ってこなかったため中止");
       consumeGaugeAfterAttack();
     }
   } else if (role === "defender") {
     if (type === "counter") {
       const dmg = extraDamage ?? pendingAttackDamage * 2;
       showAlert("◎", `カウンター成功！（${dmg}ダメージ）`, "#22c55e");
-      log(`カウンター成功（${dmg}ダメージ返し）`);
+      log(`カウンター成功（${dmg}）`);
     } else if (type === "hit") {
       showAlert("×", "被弾…", "#ef4444");
-      log("防御に失敗しました");
+      log("防御失敗");
     }
-  } else {
-    showAlert("", `結果: ${type}`);
   }
 
-  // 両方ともHPが残っているときだけIDLEに戻す
   resultTimeoutId = setTimeout(() => {
     if (hpYou > 0 && hpEnemy > 0 && state === STATE.RESULT) {
       toIdle();
     }
-  }, 1000);
+  }, 900);
 }
 
 function toIdle() {
@@ -287,68 +260,81 @@ function toIdle() {
   setState(STATE.IDLE);
   showAlert("", "待機中です。あなたか相手が斬ると始まります。");
   enableAttackBtn(true);
+  enableRematchBtn(true);
 }
 
-// ===== ネットからのイベントを受ける =====
-net.onRemoteSlash((payload) => {
-  enterDefendModeFromRemote(payload);
-});
+// ===== ラウンド開始/再戦時の共通処理 =====
+function beginRoundUI() {
+  resetBattle(true);       // HP/ゲージを満タンへ
+  toIdle();                // 攻撃可能状態へ
+  log(`新しいラウンド開始（roundId=${net.getRoundId?.() || "local"}）`);
+  showAlert("◎", "再戦スタート！", "#22c55e");
+}
 
-net.onRemoteSlashResult((payload) => {
-  if (state !== STATE.ATTACK_WAIT) return;
-  const r = payload.result;
-  if (r === "counter") {
-    showResult("counter", "attacker");
-  } else if (r === "hit") {
-    showResult("hit", "attacker");
-  } else if (r === "timeout") {
-    showResult("timeout", "attacker");
-  }
-});
-
-// マッチング状態を受ける
+// ===== ネットイベント =====
 net.onStatus((info) => {
   if (info.state === "offline") {
     setState(STATE.INIT);
     netStatusLabel.textContent = "ネットワーク: Firebase未設定（オンライン不可）";
     showAlert("×", "オンライン機能が無効です（Firebase未設定）", "#f97316");
     enableAttackBtn(false);
+    enableRematchBtn(false);
   } else if (info.state === "connecting") {
     setState(STATE.WAIT_MATCH);
     netStatusLabel.textContent = "ネットワーク: 接続中…";
     showAlert("…", "オンラインに接続中です…", "#e2e8f0");
     enableAttackBtn(false);
+    enableRematchBtn(false);
   } else if (info.state === "waiting") {
     setState(STATE.WAIT_MATCH);
     netStatusLabel.textContent = "ネットワーク: もう1台を待っています";
     showAlert("…", "もう1台で同じURLを開いてください", "#e2e8f0");
     enableAttackBtn(false);
+    enableRematchBtn(false);
   } else if (info.state === "matched") {
     netStatusLabel.textContent = `ネットワーク: マッチング成功 (room=${info.roomId}, slot=${info.slot})`;
     log(`マッチング成功: room=${info.roomId} slot=${info.slot}`);
-    // ここでIDLEに入ってボタンを有効にする
-    toIdle();
+    beginRoundUI(); // 初回ラウンド開始
   } else if (info.state === "error") {
     setState(STATE.INIT);
     netStatusLabel.textContent = `ネットワーク: エラー (${info.error})`;
     showAlert("×", "オンライン接続でエラーが発生しました", "#ef4444");
     enableAttackBtn(false);
+    enableRematchBtn(false);
   }
 });
 
-// マッチしたときの明示的なイベント（あってもなくてもいいが、デバッグしやすい）
 net.onMatched((room) => {
   log(`onMatched: room=${room.roomId} slot=${room.slot}`);
 });
 
+// ラウンドIDが更新されたらUIも新ラウンドへ
+net.onRoundChanged(() => {
+  beginRoundUI();
+});
+
+// 相手の信号受信
+net.onRemoteSlash((payload) => {
+  enterDefendModeFromRemote(payload);
+});
+net.onRemoteSlashResult((payload) => {
+  if (state !== STATE.ATTACK_WAIT) return;
+  const r = payload.result;
+  if (r === "counter") showResult("counter", "attacker");
+  else if (r === "hit") showResult("hit", "attacker");
+  else if (r === "timeout") showResult("timeout", "attacker");
+});
+
 // ===== イベントバインド =====
 attackBtn.addEventListener("click", () => {
-  if (state === STATE.DEFEND) {
-    onDefendTap();
-  } else {
-    onAttack();
-  }
+  if (state === STATE.DEFEND) onDefendTap();
+  else onAttack();
 });
+rematchBtn.addEventListener("click", () => {
+  enableRematchBtn(false); // 連打防止
+  net.requestRematch();    // 両端に roundId 変更通知 → beginRoundUI()
+});
+
 defendWindowRange.addEventListener("input", (e) => {
   currentDefendWindow = Number(e.target.value);
   defendWindowLabel.textContent = `${currentDefendWindow}ms`;
@@ -356,25 +342,31 @@ defendWindowRange.addEventListener("input", (e) => {
 window.addEventListener("keydown", (e) => {
   if (e.code === "Space" || e.code === "Enter") {
     e.preventDefault();
-    if (!attackBtn.disabled) {
-      attackBtn.click();
-    }
+    if (!attackBtn.disabled) attackBtn.click();
   }
 });
 
-// ===== 初期化 =====
-function resetBattle() {
+// ===== ゲージ/HPリセット =====
+function consumeGaugeAfterAttack() {
+  commonGauge = 0;
+  updateCommonGaugeView();
+  pendingAttackCharge = 0;
+  pendingAttackDamage = 0;
+}
+function resetBattle(quiet) {
   hpYou = HP_MAX;
   hpEnemy = HP_MAX;
   updateHpView();
   commonGauge = 0;
   updateCommonGaugeView();
   clearTimers();
-  setState(STATE.INIT);
+  if (!quiet) setState(STATE.INIT);
   enableAttackBtn(false);
+  enableRematchBtn(false);
 }
 
-resetBattle();
+// ===== 初期化 =====
+resetBattle(true);
 startCommonGaugeLoop();
 net.joinMatchmaking();
 log("オンライン待機に入りました。別の端末で同じURLを開くとマッチングします。");
