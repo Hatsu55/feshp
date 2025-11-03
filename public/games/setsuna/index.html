@@ -94,29 +94,19 @@
     <!-- Firebase SDKs (Realtime Database 用) -->
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js"></script>
-
-    <!-- あなたのプロジェクト設定：必ず差し替え -->
     <script>
-      // TODO: 自分のFirebaseコンソールで発行された内容に置き換えてください
       const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        databaseURL: "https://YOUR_PROJECT_ID.firebaseio.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "YOUR_SENDER_ID",
-        appId: "YOUR_APP_ID"
+        // TODO: 自分のやつ
       };
       const app = firebase.initializeApp(firebaseConfig);
       const rtdb = firebase.database();
-      // 他ファイルでも使えるようにwindowに載せておく
       window.__SETUNA_RTDB__ = rtdb;
     </script>
+    -->
 
-    <!-- ネットワークアダプタ -->
+    <!-- ネット周り（なくてもいい） -->
     <script type="module" src="./setsuna-net.js?v=20251103"></script>
-    <!-- ゲーム本体 -->
+    <!-- ゲーム本体（必ず最後） -->
     <script type="module" src="./game.js?v=20251103"></script>
   </body>
 </html>
-
