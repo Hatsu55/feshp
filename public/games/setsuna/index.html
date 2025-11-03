@@ -60,7 +60,7 @@
         <button id="attack-btn" class="primary-btn" disabled>斬る / カウンター</button>
       </footer>
 
-      <!-- デバッグ -->
+      <!-- Debug -->
       <section class="debug-panel" id="debug-panel">
         <h2>Debug</h2>
         <div class="debug-row">
@@ -75,11 +75,11 @@
       </section>
     </div>
 
-    <!-- ✅ Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js"></script>
+    <!-- ✅ Firebase SDK（※compat版を使う） -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
     <script>
-      // あなたの Firebase 設定（npm 版から採用）
+      // あなたの Firebase 設定
       const firebaseConfig = {
         apiKey: "AIzaSyCTcZBud_-qQAS0yHlpLucXc6W_zuWekRM",
         authDomain: "feshp-setsuna.firebaseapp.com",
@@ -91,10 +91,14 @@
         measurementId: "G-6PBBCEV25F"
       };
 
-      // Firebase 初期化
+      // 初期化（compatなのでこの書き方でOK）
       const app = firebase.initializeApp(firebaseConfig);
       const rtdb = firebase.database();
+
+      // setsuna-net.js がここを見る
       window.__SETUNA_RTDB__ = rtdb;
+
+      console.log("[index.html] Firebase初期化OK", firebase.apps.length);
     </script>
 
     <!-- ネット層 -->
