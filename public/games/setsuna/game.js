@@ -86,13 +86,12 @@ function updateHpView() {
 }
 
 // ===== ゲージ→ダメージ変換 =====
-// 今回はHPが10000なので、10段階で細かく刻みます。
-// 0〜100% → 10段階 → 100 * (1〜11) = 100〜1100ダメ
-// 10000 / 1100 ≒ 9回で落ちる、カウンター2倍なら最大2200でだいたい5回。
+// 今回はHPが10000なので、100段階で細かく刻みます。
+// 0〜100% → 10段階 → 333 * (1〜11) = 100〜1100ダメ
 function calcDamageFromCharge(chargePct) {
   const c = Math.max(0, Math.min(100, Math.floor(chargePct)));
-  const step = Math.floor(c / 10); // 0〜10
-  return 1000 * (1 + step); // 100〜1100
+  const step = Math.floor(c / 100); // 0〜100
+  return 333 * (1 + step);
 }
 
 // この攻撃が確定したのでゲージを使い切る
