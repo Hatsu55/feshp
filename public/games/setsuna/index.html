@@ -60,7 +60,7 @@
         <button id="attack-btn" class="primary-btn" disabled>斬る / カウンター</button>
       </footer>
 
-      <!-- デバッグ（仮の敵は削除） -->
+      <!-- デバッグ -->
       <section class="debug-panel" id="debug-panel">
         <h2>Debug</h2>
         <div class="debug-row">
@@ -75,22 +75,26 @@
       </section>
     </div>
 
-    <!-- Firebaseはここに自分のを入れる。まだなければコメントのままでOK -->
+    <!-- ✅ Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js"></script>
     <script>
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-        const firebaseConfig = {
+      // あなたの Firebase 設定（npm 版から採用）
+      const firebaseConfig = {
         apiKey: "AIzaSyCTcZBud_-qQAS0yHlpLucXc6W_zuWekRM",
         authDomain: "feshp-setsuna.firebaseapp.com",
+        databaseURL: "https://feshp-setsuna-default-rtdb.firebaseio.com",
         projectId: "feshp-setsuna",
         storageBucket: "feshp-setsuna.firebasestorage.app",
         messagingSenderId: "94872154277",
         appId: "1:94872154277:web:ef05a5cf3d072ed5561d4c",
         measurementId: "G-6PBBCEV25F"
-        };
+      };
+
+      // Firebase 初期化
       const app = firebase.initializeApp(firebaseConfig);
-      window.__SETUNA_RTDB__ = firebase.database();
+      const rtdb = firebase.database();
+      window.__SETUNA_RTDB__ = rtdb;
     </script>
 
     <!-- ネット層 -->
