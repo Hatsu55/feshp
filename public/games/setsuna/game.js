@@ -92,7 +92,7 @@ function updateHpView() {
 function calcDamageFromCharge(chargePct) {
   const c = Math.max(0, Math.min(100, Math.floor(chargePct)));
   const step = Math.floor(c / 10); // 0〜10
-  return 100 * (1 + step); // 100〜1100
+  return 1000 * (1 + step); // 100〜1100
 }
 
 // この攻撃が確定したのでゲージを使い切る
