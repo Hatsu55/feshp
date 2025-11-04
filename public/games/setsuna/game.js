@@ -43,6 +43,7 @@ const alertTextEl = document.getElementById("alert-text");
 const logAreaEl = document.getElementById("log-area");
 const attackBtn = document.getElementById("attack-btn");
 const rematchBtn = document.getElementById("rematch-btn");
+const reconnectBtn = document.getElementById("reconnect-btn");
 const defendWindowRange = document.getElementById("defend-window-range");
 const defendWindowLabel = document.getElementById("defend-window-label");
 const timerBarWrap = document.getElementById("timer-bar-wrap");
@@ -52,8 +53,12 @@ const commonGaugeValue = document.getElementById("common-gauge-value");
 const hpYouEl = document.getElementById("hp-you");
 const hpEnemyEl = document.getElementById("hp-enemy");
 const netStatusLabel = document.getElementById("net-status-label");
+const debugRoleEl = document.getElementById("debug-role");
+const debugStateEl = document.getElementById("debug-state");
+const debugHpEl = document.getElementById("debug-hp");
+const debugGaugeEl = document.getElementById("debug-gauge");
 
-// ===== util =====
+// ===== ユーティリティ =====
 function setState(next) {
   state = next;
   gameStateEl.textContent = `state: ${next}`;
@@ -81,14 +86,26 @@ function hideRematchButton() {
   rematchBtn.classList.add("hidden");
   enableRematchBtn(false);
 }
+function showReconnectButton() {
+  reconnectBtn.classList.remove("hidden");
+  reconnectBtn.disabled = false;
+}
+function hideReconnectButton() {
+  reconnectBtn.classList.add("hidden");
+  reconnectBtn.disabled = true;
+}
 function updateCommonGaugeView() {
   const pct = Math.min(Math.max(commonGauge, 0), COMMON_GAUGE_MAX);
   commonGaugeFill.style.width = `${pct}%`;
-  commonGaugeValue.textContent = `${Math.floor(pct)}%`;
+  commonGaugeValue.textContent = `${pct}%`;
+  debugGaugeEl.textContent = `Gauge: ${pct}`;
 }
 function updateHpView() {
-  hpYouEl.style.width = `${Math.max(0, (hpYou / HP_MAX) * 100)}%`;
-  hpEnemyEl.style.width = `${Math.max(0, (hpEnemy / HP_MAX) * 100)}%`;
+  const youPct = Math.max(0, (hpYou / HP_MAX) * 100);
+  const enemyPct = Math.max(0, (hpEnemy / HP_MAX) * 100);
+  hpYouEl.style.width = `${youPct}%`;
+  hpEnemyEl.style.width = `${enemyPct}%`;
+  debugHpEl.textContent = `HP: YOU=${hpYou} ENEMY=${hpEnemy}`;
 }
 function clearTimers() {
   if (defendTimeoutId) clearTimeout(defendTimeoutId);
@@ -99,8 +116,7 @@ function clearTimers() {
 
 // ===== ダメージ式（10段階・400刻み） =====
 function calcDamageFromCharge(chargePct) {
-  const c = Math.max(0, Math.min(100, Math.floor(chargePct)));
-  const step = Math.floor(c / 10); // 0〜10
+  const step = Math.floor(Math.max(0, Math.min(100, chargePct)) / 10); // 0〜10
   return 400 * (1 + step); // 400〜4400
 }
 
@@ -108,9 +124,16 @@ function calcDamageFromCharge(chargePct) {
 function startCommonGaugeLoop() {
   if (commonGaugeTimerId) return;
   commonGaugeTimerId = setInterval(() => {
-    if (commonGauge < COMMON_GAUGE_MAX) {
-      commonGauge += 1;
-      updateCommonGaugeView();
+    // マッチング中や結果表示中など「関係ない時」はゲージを増やさない
+    if (
+      state === STATE.IDLE ||
+      state === STATE.DEFEND ||
+      state === STATE.ATTACK_WAIT
+    ) {
+      if (commonGauge < COMMON_GAUGE_MAX) {
+        commonGauge += 1;
+        updateCommonGaugeView();
+      }
     }
   }, 100);
 }
@@ -123,7 +146,41 @@ function consumeGaugeAfterAttack() {
   pendingAttackDamage = 0;
 }
 
-// ===== ラウンド開始（初回＆再戦共通） =====
+// ===== HP適用 =====
+function applyDamageTo(target, amount) {
+  if (target === "you") hpYou = Math.max(0, hpYou - amount);
+  else hpEnemy = Math.max(0, hpEnemy - amount);
+  updateHpView();
+
+  debugRoleEl.textContent = `role: ${currentRole || "-"}`;
+  debugStateEl.textContent = `state: ${state}`;
+
+  if (hpYou <= 0 || hpEnemy <= 0) {
+    endBattle();
+  }
+}
+
+// ===== 決着処理 =====
+function endBattle() {
+  clearTimers();
+  setState(STATE.RESULT);
+  enableAttackBtn(false);
+  showRematchButton();
+  timerBarWrap.classList.add("hidden");
+
+  if (hpYou <= 0 && hpEnemy <= 0) {
+    showAlert("＝", "相打ちで両者戦闘不能…", "#e2e8f0");
+    log("両者HP0 → 引き分け");
+  } else if (hpYou <= 0) {
+    showAlert("×", "敗北…", "#ef4444");
+    log("あなたの敗北");
+  } else if (hpEnemy <= 0) {
+    showAlert("◎", "勝利！", "#22c55e");
+    log("あなたの勝利");
+  }
+}
+
+// ===== ラウンド開始UI =====
 function beginRoundUI() {
   hpYou = HP_MAX;
   hpEnemy = HP_MAX;
@@ -132,6 +189,7 @@ function beginRoundUI() {
   updateCommonGaugeView();
   clearTimers();
   hideRematchButton();
+  hideReconnectButton();
   toIdle();
   log(`新しいラウンド開始 (roundId=${net.getRoundId ? net.getRoundId() : "?"})`);
 }
@@ -162,96 +220,57 @@ function onAttack() {
   }, 1200);
 }
 
-// ===== 防御へ（相手の slash 受信時） =====
+// ===== 防御へ（相手の slash を受信） =====
 function enterDefendModeFromRemote(payload) {
-  // 同時斬り
+  // すでにこちらも攻撃中なら相打ち扱い
   if (state === STATE.ATTACK_WAIT) {
-    showResult("draw", null);
+    showResult("draw", "attacker");
+    net.sendSlashResult({ result: "draw", ts: Date.now() });
     return;
   }
 
-  clearTimers();
-  currentRole = "defender";
-  pendingAttackDamage = payload?.damage ?? 400;
-  pendingAttackCharge = payload?.charge ?? 0;
+  if (state !== STATE.IDLE) {
+    return;
+  }
 
+  currentRole = "defender";
   setState(STATE.DEFEND);
-  enableAttackBtn(true);
-  showAlert("！", "斬り返せ！", "#f97316");
-  log(`相手が斬ってきました。受けると ${pendingAttackDamage} ダメージ`);
+
+  pendingAttackDamage = payload.damage;
+  pendingAttackCharge = payload.charge;
+
+  showAlert("！", "攻撃が来た！ タップでカウンター", "#f97316");
+  log(`相手が斬ってきました。予定ダメージ: ${pendingAttackDamage}`);
 
   timerBarWrap.classList.remove("hidden");
+  timerBar.style.transition = "none";
   timerBar.style.width = "100%";
-
-  const start = performance.now();
-  const windowMs = currentDefendWindow;
+  void timerBar.offsetWidth;
+  timerBar.style.transition = `width ${currentDefendWindow}ms linear`;
+  timerBar.style.width = "0%";
 
   defendTimeoutId = setTimeout(() => {
-    applyDamageTo("you", pendingAttackDamage);
-    consumeGaugeAfterAttack();
-    net.sendSlashResult({ result: "hit", ts: Date.now() });
-    showResult("hit", "defender");
-  }, windowMs);
-
-  function tick(now) {
     if (state !== STATE.DEFEND) return;
-    const elapsed = now - start;
-    const remain = Math.max(windowMs - elapsed, 0);
-    timerBar.style.width = `${(remain / windowMs) * 100}%`;
-    if (remain > 0) requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
+    timerBarWrap.classList.add("hidden");
+    showResult("hit", "defender");
+    net.sendSlashResult({ result: "hit", ts: Date.now() });
+  }, currentDefendWindow);
 }
 
-// ===== 防御中タップ（カウンター2倍） =====
+// ===== 防御側のタップ =====
 function onDefendTap() {
   if (state !== STATE.DEFEND) return;
+
   clearTimeout(defendTimeoutId);
   defendTimeoutId = null;
+  timerBarWrap.classList.add("hidden");
 
   const reflected = pendingAttackDamage * 2;
-  applyDamageTo("enemy", reflected);
-  consumeGaugeAfterAttack();
-  net.sendSlashResult({ result: "counter", damage: reflected, ts: Date.now() });
   showResult("counter", "defender", reflected);
+  net.sendSlashResult({ result: "counter", damage: reflected, ts: Date.now() });
 }
 
-// ===== ダメージ適用＆勝敗判定 =====
-function applyDamageTo(who, amount) {
-  if (amount <= 0) amount = 1;
-
-  if (who === "you") {
-    hpYou = Math.max(0, hpYou - amount);
-    updateHpView();
-    if (hpYou <= 0) {
-      endBattle("lose");
-    }
-  } else {
-    hpEnemy = Math.max(0, hpEnemy - amount);
-    updateHpView();
-    if (hpEnemy <= 0) {
-      endBattle("win");
-    }
-  }
-}
-
-// 勝敗確定時
-function endBattle(result) {
-  clearTimers();
-  setState(STATE.RESULT);
-  enableAttackBtn(false);
-  showRematchButton();
-
-  if (result === "win") {
-    showAlert("◎", "YOU WIN!", "#22c55e");
-    log("このラウンドはあなたの勝利です");
-  } else {
-    showAlert("×", "YOU LOSE", "#ef4444");
-    log("このラウンドはあなたの敗北です");
-  }
-}
-
-// ===== 結果表示（途中経過用） =====
+// ===== 結果表示 =====
 function showResult(type, role = currentRole, extraDamage = null) {
   const battleEnded = hpYou <= 0 || hpEnemy <= 0;
 
@@ -261,7 +280,6 @@ function showResult(type, role = currentRole, extraDamage = null) {
 
   if (role === "attacker") {
     if (type === "counter") {
-      // カウンターされた → 2倍食らう（ここで決着つくことも多い）
       const reflected = pendingAttackDamage * 2;
       applyDamageTo("you", reflected);
       if (!battleEnded && hpYou > 0) {
@@ -310,6 +328,18 @@ function showResult(type, role = currentRole, extraDamage = null) {
       toIdle();
     }
   }, 900);
+}
+
+// ===== 中止処理（通信切断など） =====
+function abortBattle(message) {
+  clearTimers();
+  setState(STATE.RESULT);
+  timerBarWrap.classList.add("hidden");
+  enableAttackBtn(false);
+  hideRematchButton();
+  showReconnectButton();
+  showAlert("×", message || "対戦が中止されました", "#f97316");
+  log("対戦が中止されました。再マッチングするには「再マッチング開始」を押してください。");
 }
 
 // ===== 状態遷移 =====
@@ -363,6 +393,11 @@ net.onRoundChanged(() => {
   beginRoundUI();
 });
 
+// 相手切断（presence検知）
+net.onOpponentLeft((_info) => {
+  abortBattle("相手の接続が切れました（中止）");
+});
+
 // 相手の行動
 net.onRemoteSlash((payload) => {
   enterDefendModeFromRemote(payload);
@@ -388,13 +423,29 @@ rematchBtn.addEventListener("click", () => {
   net.requestRematch();
 });
 
+reconnectBtn.addEventListener("click", () => {
+  hideReconnectButton();
+  hideRematchButton();
+  clearTimers();
+  hpYou = HP_MAX;
+  hpEnemy = HP_MAX;
+  commonGauge = 0;
+  updateHpView();
+  updateCommonGaugeView();
+  setState(STATE.WAIT_MATCH);
+  enableAttackBtn(false);
+  showAlert("…", "再マッチング中です…", "#e2e8f0");
+  log("再マッチングを開始します。別の端末と再度マッチングします。");
+  net.joinMatchmaking();
+});
+
 defendWindowRange.addEventListener("input", (e) => {
   currentDefendWindow = Number(e.target.value);
   defendWindowLabel.textContent = `${currentDefendWindow}ms`;
 });
 
-window.addEventListener("keydown", (e) => {
-  if (e.code === "Space" || e.code === "Enter") {
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space") {
     e.preventDefault();
     if (!attackBtn.disabled) attackBtn.click();
   }
@@ -402,6 +453,7 @@ window.addEventListener("keydown", (e) => {
 
 // ===== 初期化 =====
 hideRematchButton();
+hideReconnectButton();
 updateHpView();
 updateCommonGaugeView();
 startCommonGaugeLoop();

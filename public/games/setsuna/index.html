@@ -14,18 +14,38 @@
       </header>
 
       <!-- ステータスバー（共通ゲージ＋HP） -->
-      <section class="status-bar">
+      <section class="status-panel">
+        <div class="status-top-row">
+          <div class="net-status" id="net-status-label">ネットワーク: 初期化中</div>
+          <div class="defend-window-control">
+            <label for="defend-window-range">
+              防御受付
+              <span id="defend-window-label">300ms</span>
+            </label>
+            <input
+              id="defend-window-range"
+              type="range"
+              min="150"
+              max="600"
+              step="10"
+              value="300"
+            />
+          </div>
+        </div>
+
+        <!-- 共通ゲージ -->
         <div class="common-gauge-wrap">
           <div class="common-gauge-label">
-            共通ゲージ
-            <span id="common-gauge-value" class="gauge-value">0%</span>
+            <span>共通ゲージ</span>
+            <span id="common-gauge-value">0%</span>
           </div>
-          <div class="common-gauge-track">
+          <div class="common-gauge-bar">
             <div id="common-gauge-fill" class="common-gauge-fill"></div>
           </div>
         </div>
 
-        <div class="hp-row">
+        <!-- HP -->
+        <div class="hp-wrapper">
           <div class="hp-block">
             <div class="hp-label">YOU</div>
             <div class="hp-track">
@@ -41,13 +61,15 @@
         </div>
       </section>
 
-      <!-- メイン表示 -->
+      <!-- メインエリア -->
       <main class="game-main">
-        <div id="alert-area" class="alert-area">
-          <div id="alert-symbol" class="alert-symbol"></div>
-          <div id="alert-text" class="alert-text"></div>
+        <!-- アラート -->
+        <div class="alert-area">
+          <div id="alert-symbol" class="alert-symbol">-</div>
+          <div id="alert-text" class="alert-text">オンライン対戦の準備中です…</div>
         </div>
 
+        <!-- タイマー(bar) -->
         <div id="timer-bar-wrap" class="timer-bar-wrap hidden">
           <div id="timer-bar" class="timer-bar"></div>
         </div>
@@ -59,36 +81,37 @@
       <footer class="game-footer">
         <button id="attack-btn" class="primary-btn" disabled>斬る / カウンター</button>
         <button id="rematch-btn" class="secondary-btn" disabled>再戦</button>
+        <button id="reconnect-btn" class="secondary-btn hidden" disabled>再マッチング開始</button>
       </footer>
 
       <!-- Debug -->
       <section class="debug-panel" id="debug-panel">
         <h2>Debug</h2>
         <div class="debug-row">
-          <span id="net-status-label">ネットワーク: 未接続</span>
+          <span id="debug-role">role: -</span>
+          <span id="debug-state">state: init</span>
         </div>
         <div class="debug-row">
-          <label>自分の防御受付(ms):
-            <input type="range" id="defend-window-range" min="150" max="600" value="300" />
-            <span id="defend-window-label">300ms</span>
-          </label>
+          <span id="debug-hp">HP: -</span>
+          <span id="debug-gauge">Gauge: -</span>
         </div>
       </section>
     </div>
 
-    <!-- Firebase（compat版） -->
-    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
     <script>
       const firebaseConfig = {
-        apiKey: "AIzaSyCTcZBud_-qQAS0yHlpLucXc6W_zuWekRM",
-        authDomain: "feshp-setsuna.firebaseapp.com",
-        databaseURL: "https://feshp-setsuna-default-rtdb.firebaseio.com",
-        projectId: "feshp-setsuna",
-        storageBucket: "feshp-setsuna.firebasestorage.app",
+        apiKey: "AIzaSyA5ZL_jLulj0CBv-KwdBFy33PaiXXiyTWY",
+        authDomain: "setsuna-net.firebaseapp.com",
+        databaseURL: "https://setsuna-net-default-rtdb.firebaseio.com",
+        projectId: "setsuna-net",
+        storageBucket: "setsuna-net.appspot.com",
         messagingSenderId: "94872154277",
         appId: "1:94872154277:web:ef05a5cf3d072ed5561d4c",
-        measurementId: "G-6PBBCEV25F"
+        measurementId: "G-6PBBCEV25F",
       };
       const app = firebase.initializeApp(firebaseConfig);
       const rtdb = firebase.database();
