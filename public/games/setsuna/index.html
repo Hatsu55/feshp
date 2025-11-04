@@ -104,19 +104,22 @@
 
     <script>
       const firebaseConfig = {
-        apiKey: "AIzaSyA5ZL_jLulj0CBv-KwdBFy33PaiXXiyTWY",
-        authDomain: "setsuna-net.firebaseapp.com",
-        databaseURL: "https://setsuna-net-default-rtdb.firebaseio.com",
-        projectId: "setsuna-net",
-        storageBucket: "setsuna-net.appspot.com",
+        apiKey: "AIzaSyCTcZBud_-qQAS0yHlpLucXc6W_zuWekRM",
+        authDomain: "feshp-setsuna.firebaseapp.com",
+        databaseURL: "https://feshp-setsuna-default-rtdb.firebaseio.com",
+        projectId: "feshp-setsuna",
+        storageBucket: "feshp-setsuna.firebasestorage.app",
         messagingSenderId: "94872154277",
         appId: "1:94872154277:web:ef05a5cf3d072ed5561d4c",
         measurementId: "G-6PBBCEV25F",
       };
+
+      // v8 形式で初期化
       const app = firebase.initializeApp(firebaseConfig);
       const rtdb = firebase.database();
       window.__SETUNA_RTDB__ = rtdb;
     </script>
+
 
     <!-- ネット層 -->
     <script type="module" src="./setsuna-net.js?v=20251103-r1"></script>
