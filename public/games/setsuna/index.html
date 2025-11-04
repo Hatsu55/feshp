@@ -17,6 +17,8 @@
       <section class="status-panel">
         <div class="status-top-row">
           <div class="net-status" id="net-status-label">ネットワーク: 初期化中</div>
+          <!-- 防御受付スライダー（デバッグ用） -->
+          <!--
           <div class="defend-window-control">
             <label for="defend-window-range">
               防御受付
@@ -31,13 +33,14 @@
               value="300"
             />
           </div>
+          -->
         </div>
 
         <!-- 共通ゲージ -->
         <div class="common-gauge-wrap">
           <div class="common-gauge-label">
             <span>共通ゲージ</span>
-            <span id="common-gauge-value">0%</span>
+            <span id="common-gauge-value" class="gauge-value">0%</span>
           </div>
           <div class="common-gauge-bar">
             <div id="common-gauge-fill" class="common-gauge-fill"></div>
@@ -84,7 +87,8 @@
         <button id="reconnect-btn" class="secondary-btn hidden" disabled>再マッチング開始</button>
       </footer>
 
-      <!-- Debug -->
+      <!-- Debug（試遊版では非表示にするためコメントアウト） -->
+      <!--
       <section class="debug-panel" id="debug-panel">
         <h2>Debug</h2>
         <div class="debug-row">
@@ -96,6 +100,7 @@
           <span id="debug-gauge">Gauge: -</span>
         </div>
       </section>
+      -->
     </div>
 
     <!-- Firebase SDK -->
@@ -120,10 +125,9 @@
       window.__SETUNA_RTDB__ = rtdb;
     </script>
 
-
     <!-- ネット層 -->
-    <script type="module" src="./setsuna-net.js?v=20251103-r1"></script>
+    <script type="module" src="./setsuna-net.js?v=20251103-r2"></script>
     <!-- ゲーム本体 -->
-    <script type="module" src="./game.js?v=20251103-r1"></script>
+    <script type="module" src="./game.js?v=20251103-r2"></script>
   </body>
 </html>

@@ -33,8 +33,8 @@ let pendingAttackDamage = 0;
 let defendTimeoutId = null;
 let resultTimeoutId = null;
 
-// 防御受付
-let currentDefendWindow = 300;
+// 防御受付（ややシビア寄りの固定値：250ms）
+let currentDefendWindow = 250;
 
 // DOM
 const gameStateEl = document.getElementById("game-state");
@@ -44,8 +44,6 @@ const logAreaEl = document.getElementById("log-area");
 const attackBtn = document.getElementById("attack-btn");
 const rematchBtn = document.getElementById("rematch-btn");
 const reconnectBtn = document.getElementById("reconnect-btn");
-const defendWindowRange = document.getElementById("defend-window-range");
-const defendWindowLabel = document.getElementById("defend-window-label");
 const timerBarWrap = document.getElementById("timer-bar-wrap");
 const timerBar = document.getElementById("timer-bar");
 const commonGaugeFill = document.getElementById("common-gauge-fill");
@@ -53,6 +51,8 @@ const commonGaugeValue = document.getElementById("common-gauge-value");
 const hpYouEl = document.getElementById("hp-you");
 const hpEnemyEl = document.getElementById("hp-enemy");
 const netStatusLabel = document.getElementById("net-status-label");
+
+// デバッグ用要素は存在しないかもしれないので null セーフにする
 const debugRoleEl = document.getElementById("debug-role");
 const debugStateEl = document.getElementById("debug-state");
 const debugHpEl = document.getElementById("debug-hp");
@@ -62,6 +62,7 @@ const debugGaugeEl = document.getElementById("debug-gauge");
 function setState(next) {
   state = next;
   gameStateEl.textContent = `state: ${next}`;
+  if (debugStateEl) debugStateEl.textContent = `state: ${next}`;
 }
 function log(msg) {
   const time = new Date().toLocaleTimeString("ja-JP", { hour12: false });
@@ -98,14 +99,14 @@ function updateCommonGaugeView() {
   const pct = Math.min(Math.max(commonGauge, 0), COMMON_GAUGE_MAX);
   commonGaugeFill.style.width = `${pct}%`;
   commonGaugeValue.textContent = `${pct}%`;
-  debugGaugeEl.textContent = `Gauge: ${pct}`;
+  if (debugGaugeEl) debugGaugeEl.textContent = `Gauge: ${pct}`;
 }
 function updateHpView() {
   const youPct = Math.max(0, (hpYou / HP_MAX) * 100);
   const enemyPct = Math.max(0, (hpEnemy / HP_MAX) * 100);
   hpYouEl.style.width = `${youPct}%`;
   hpEnemyEl.style.width = `${enemyPct}%`;
-  debugHpEl.textContent = `HP: YOU=${hpYou} ENEMY=${hpEnemy}`;
+  if (debugHpEl) debugHpEl.textContent = `HP: YOU=${hpYou} ENEMY=${hpEnemy}`;
 }
 function clearTimers() {
   if (defendTimeoutId) clearTimeout(defendTimeoutId);
@@ -152,8 +153,8 @@ function applyDamageTo(target, amount) {
   else hpEnemy = Math.max(0, hpEnemy - amount);
   updateHpView();
 
-  debugRoleEl.textContent = `role: ${currentRole || "-"}`;
-  debugStateEl.textContent = `state: ${state}`;
+  if (debugRoleEl) debugRoleEl.textContent = `role: ${currentRole || "-"}`;
+  if (debugStateEl) debugStateEl.textContent = `state: ${state}`;
 
   if (hpYou <= 0 || hpEnemy <= 0) {
     endBattle();
@@ -310,11 +311,15 @@ function showResult(type, role = currentRole, extraDamage = null) {
   } else if (role === "defender") {
     if (type === "counter") {
       const dmg = extraDamage ?? pendingAttackDamage * 2;
+      // 自分視点では相手にダメージ
+      applyDamageTo("enemy", dmg);
       if (!battleEnded && hpEnemy > 0) {
         showAlert("◎", `カウンター成功！（${dmg}ダメージ）`, "#22c55e");
         log(`カウンター成功（${dmg}ダメージ返し）`);
       }
     } else if (type === "hit") {
+      // 自分が被弾
+      applyDamageTo("you", pendingAttackDamage);
       if (!battleEnded && hpYou > 0) {
         showAlert("×", "被弾…", "#ef4444");
         log("防御に失敗しました");
@@ -437,11 +442,6 @@ reconnectBtn.addEventListener("click", () => {
   showAlert("…", "再マッチング中です…", "#e2e8f0");
   log("再マッチングを開始します。別の端末と再度マッチングします。");
   net.joinMatchmaking();
-});
-
-defendWindowRange.addEventListener("input", (e) => {
-  currentDefendWindow = Number(e.target.value);
-  defendWindowLabel.textContent = `${currentDefendWindow}ms`;
 });
 
 document.addEventListener("keydown", (e) => {
