@@ -183,7 +183,7 @@ function endBattle() {
     log("あなたの敗北");
   } else if (hpEnemy <= 0) {
     showAlert("◎", "勝利！", "#22c55e");
-    log("あなたの勝利");
+    log("勝利");
   }
 }
 
@@ -253,7 +253,7 @@ function enterDefendModeFromRemote(payload) {
   // 「相手が斬った＝共通ゲージが消費された」とみなして、自分側でもゲージを0表示
   consumeGaugeVisually();
 
-  showAlert("！", "攻撃が来た！ タップでカウンター", "#f97316");
+  showAlert("！", "斬撃が来た！ タップでカウンター", "#f97316");
   log(`相手が斬ってきました。予定ダメージ: ${pendingAttackDamage}`);
 
   timerBarWrap.classList.remove("hidden");
@@ -334,7 +334,7 @@ function showResult(type, role = currentRole, extraDamage = null) {
       // 自分が被弾
       applyDamageTo("you", pendingAttackDamage);
       if (!battleEnded && hpYou > 0) {
-        showAlert("×", "被弾…", "#ef4444");
+        showAlert("×", "斬られた…", "#ef4444");
         log("防御に失敗しました");
       }
     }
@@ -365,7 +365,7 @@ function toIdle() {
   clearTimers();
   currentRole = null;
   setState(STATE.IDLE);
-  showAlert("", "待機中です。あなたか相手が斬ると始まります。");
+  showAlert("", "ゲーム開始");
   enableAttackBtn(true);
 }
 
@@ -452,7 +452,7 @@ reconnectBtn.addEventListener("click", () => {
   updateCommonGaugeView();
   setState(STATE.WAIT_MATCH);
   enableAttackBtn(false);
-  showAlert("…", "再マッチング中です…", "#e2e8f0");
+  showAlert("…", "再マッチング中…", "#e2e8f0");
   log("再マッチングを開始します。別の端末と再度マッチングします。");
   net.joinMatchmaking();
 });
@@ -472,5 +472,5 @@ updateCommonGaugeView();
 startCommonGaugeLoop();
 setState(STATE.INIT);
 enableAttackBtn(false);
-log("オンライン待機に入ります。別の端末で同じURLを開くとマッチングします。");
+log("マッチング開始・・・");
 net.joinMatchmaking();
