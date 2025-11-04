@@ -139,7 +139,13 @@ function startCommonGaugeLoop() {
   }, 100);
 }
 
-// ===== ゲージ消費 =====
+// 「攻撃が発生したのでゲージは消費済み」という見た目だけを反映する
+function consumeGaugeVisually() {
+  commonGauge = 0;
+  updateCommonGaugeView();
+}
+
+// ===== ゲージ消費（ペンディング値のクリアも含めた完全リセット） =====
 function consumeGaugeAfterAttack() {
   commonGauge = 0;
   updateCommonGaugeView();
@@ -199,8 +205,12 @@ function beginRoundUI() {
 function onAttack() {
   if (state !== STATE.IDLE) return;
 
+  // 現在のゲージを使用してダメージを決定
   pendingAttackCharge = commonGauge;
   pendingAttackDamage = calcDamageFromCharge(pendingAttackCharge);
+
+  // 「斬撃が起きたので共通ゲージは消費済み」という見た目にする（ただし pending 値は保持）
+  consumeGaugeVisually();
 
   currentRole = "attacker";
   setState(STATE.ATTACK_WAIT);
@@ -239,6 +249,9 @@ function enterDefendModeFromRemote(payload) {
 
   pendingAttackDamage = payload.damage;
   pendingAttackCharge = payload.charge;
+
+  // 「相手が斬った＝共通ゲージが消費された」とみなして、自分側でもゲージを0表示
+  consumeGaugeVisually();
 
   showAlert("！", "攻撃が来た！ タップでカウンター", "#f97316");
   log(`相手が斬ってきました。予定ダメージ: ${pendingAttackDamage}`);
