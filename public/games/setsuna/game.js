@@ -33,8 +33,8 @@ let pendingAttackDamage = 0;
 let defendTimeoutId = null;
 let resultTimeoutId = null;
 
-// 防御受付（ややシビア寄りの固定値：250ms）
-let currentDefendWindow = 250;
+// 防御受付（ややシビア寄りの固定値：180ms）
+let currentDefendWindow =   180;
 
 // DOM
 const gameStateEl = document.getElementById("game-state");
