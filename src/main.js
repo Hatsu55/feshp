@@ -70,7 +70,7 @@ function applyStampFromURL() {
   saveStamps([...current]);
   renderStampsDOM();
 
-  // URLをきれいに戻す（viewパラメータなどは残すかどうかは必要に応じて調整）
+  // stampだけ取り除いてURLをきれいにする（viewは残す）
   p.delete("stamp");
   const q = p.toString();
   const newUrl = q ? `${location.pathname}?${q}` : location.pathname;
@@ -173,11 +173,7 @@ function renderGames(list) {
   wrap.innerHTML = "";
   list.forEach((g) => {
     const card = document.createElement("div");
-    card.style.background = "rgba(255,255,255,0.015)";
-    card.style.border = "1px solid rgba(255,255,255,0.015)";
-    card.style.borderRadius = "10px";
-    card.style.padding = "6px 8px";
-    card.style.cursor = "pointer";
+    card.className = "game-card";
     card.innerHTML = `<strong>${escapeHtml(g.title)}</strong><br><span style="opacity:.65">${escapeHtml(g.desc || "")}</span>`;
     card.addEventListener("click", () => {
       alert(`「${g.title}」を起動する処理をここに入れます（後で）`);
@@ -239,51 +235,110 @@ function startHeroLoop() {
 }
 
 // =============================
-// 5. ビュー切り替え（Games / Stamps / Clubs）
+// 5. 機能画面オーバーレイ（Games / Stamps / Clubs）
 // =============================
-const VIEW_DEFAULT = "games";
+const SCREEN_TITLES = {
+  games: "ミニゲーム一覧",
+  stamps: "スタンプ",
+  clubs: "部展紹介",
+};
 
-function getInitialView() {
+function getInitialScreen() {
   const p = new URLSearchParams(location.search);
   const v = p.get("view");
   if (v === "games" || v === "stamps" || v === "clubs") return v;
-  return VIEW_DEFAULT;
+  return null; // デフォルトはホームのみ表示
 }
 
-function applyView(view) {
-  // navの見た目
-  const circles = document.querySelectorAll(".nav-circle");
-  circles.forEach((c) => {
-    const v = c.dataset.view;
-    if (v === view) c.classList.add("nav-circle--active");
-    else c.classList.remove("nav-circle--active");
+function openScreen(screen, fromCircleEl) {
+  const overlay = document.getElementById("featureOverlay");
+  const titleEl = document.getElementById("featureTitle");
+  if (!overlay || !titleEl) return;
+
+  // タイトル切り替え
+  titleEl.textContent = SCREEN_TITLES[screen] ?? "機能";
+
+  // 対応するviewだけ表示
+  const views = document.querySelectorAll(".feature-view");
+  views.forEach((v) => {
+    const s = v.getAttribute("data-screen");
+    if (s === screen) {
+      v.classList.add("feature-view--active");
+    } else {
+      v.classList.remove("feature-view--active");
+    }
   });
 
-  // パネル表示
-  const panels = document.querySelectorAll(".view-panel");
-  panels.forEach((p) => {
-    const v = p.getAttribute("data-view-panel");
-    if (v === view) p.classList.add("view-panel--active");
-    else p.classList.remove("view-panel--active");
-  });
+  // transform-origin を押したボタンの位置に寄せる（ボタン→画面が広がる感じ）
+  const appShell = document.querySelector(".app-shell");
+  if (fromCircleEl && appShell) {
+    const circleRect = fromCircleEl.getBoundingClientRect();
+    const appRect = appShell.getBoundingClientRect();
+    const cx = circleRect.left + circleRect.width / 2 - appRect.left;
+    const cy = circleRect.top + circleRect.height / 2 - appRect.top;
+    overlay.style.transformOrigin = `${cx}px ${cy}px`;
+  } else {
+    overlay.style.transformOrigin = "50% 50%";
+  }
 
-  // URLにも反映（リロードはされない）
+  // オーバーレイ表示
+  overlay.classList.add("feature-overlay--active");
+
+  // URLにもviewを反映
   const params = new URLSearchParams(location.search);
-  params.set("view", view);
+  params.set("view", screen);
   const q = params.toString();
   const newUrl = q ? `${location.pathname}?${q}` : location.pathname;
   history.replaceState(null, "", newUrl);
+
+  // ナビの見た目
+  updateNavActive(screen);
 }
 
-function setupNavCircles() {
+function closeScreen() {
+  const overlay = document.getElementById("featureOverlay");
+  if (!overlay) return;
+  overlay.classList.remove("feature-overlay--active");
+
+  // URLからviewを削除（ホームのみの状態に戻す）
+  const params = new URLSearchParams(location.search);
+  params.delete("view");
+  const q = params.toString();
+  const newUrl = q ? `${location.pathname}?${q}` : location.pathname;
+  history.replaceState(null, "", newUrl);
+
+  updateNavActive(null);
+}
+
+function updateNavActive(screen) {
   const circles = document.querySelectorAll(".nav-circle");
   circles.forEach((c) => {
+    const v = c.dataset.view;
+    if (screen && v === screen) {
+      c.classList.add("nav-circle--active");
+    } else {
+      c.classList.remove("nav-circle--active");
+    }
+  });
+}
+
+function setupNavAndOverlay() {
+  const circles = document.querySelectorAll(".nav-circle");
+  const backBtn = document.getElementById("backBtn");
+
+  circles.forEach((c) => {
     c.addEventListener("click", () => {
-      const view = c.dataset.view;
-      if (!view) return;
-      applyView(view);
+      const screen = c.dataset.view;
+      if (!screen) return;
+      openScreen(screen, c);
     });
   });
+
+  if (backBtn) {
+    backBtn.addEventListener("click", () => {
+      closeScreen();
+    });
+  }
 }
 
 // =============================
@@ -307,10 +362,10 @@ function escapeHtml(s) {
 // 7. 起動
 // =============================
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1) URLからスタンプ取得（iPhone標準カメラ対応）
+  // 1) スタンプURL (?stamp=s1) 対応
   const fromUrl = applyStampFromURL();
 
-  // 2) スタンプ描画
+  // 2) スタンプ描画＋リセットボタン
   renderStampsDOM();
   injectStampResetButton();
 
@@ -327,13 +382,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (wrap) wrap.textContent = String(e.message || e);
   }
 
-  // 5) ヒーロー開始
+  // 5) ヒーロースライド
   startHeroLoop();
 
-  // 6) ビュー切り替え初期化
-  setupNavCircles();
-  const initialView = getInitialView();
-  applyView(initialView);
+  // 6) 機能画面オーバーレイ
+  setupNavAndOverlay();
+  const initialScreen = getInitialScreen();
+  if (initialScreen) {
+    // URLに view=stamps 等があれば初期表示で開く
+    openScreen(initialScreen, null);
+  }
 
   if (fromUrl) {
     console.log(`スタンプ「${fromUrl}」を取得しました`);

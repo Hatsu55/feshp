@@ -16,8 +16,8 @@
         --text: #f3f5f7;
         --muted: rgba(243,245,247,0.55);
         --bottom: #020202;
-        --window-btn: #2a2f36;
       }
+
       * { box-sizing: border-box; }
 
       body {
@@ -36,9 +36,11 @@
         min-height: 100vh;
         display: flex;
         flex-direction: column;
+        position: relative;
         background:
           radial-gradient(circle at top, rgba(255,255,255,0.03), transparent 48%),
           var(--bg);
+        overflow: hidden;
       }
 
       .top-safe {
@@ -108,13 +110,15 @@
         justify-content: center;
         color: rgba(255,255,255,0.7);
         font-weight: 500;
+        font-size: 13px;
+        text-align: center;
       }
 
       .nav-circles {
         display: flex;
         gap: 10px;
         padding: 0 12px;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
       }
       .nav-circle {
         flex: 1 1 0;
@@ -130,16 +134,18 @@
         position: relative;
         overflow: hidden;
         cursor: pointer;
-        transition: transform 0.16s ease-out, box-shadow 0.16s ease-out, border-color 0.16s ease-out;
+        transition: transform 0.16s ease-out,
+                    box-shadow 0.16s ease-out,
+                    border-color 0.16s ease-out,
+                    background 0.16s ease-out;
       }
       .nav-circle--active {
         background: radial-gradient(circle at 20% 10%, rgba(128,255,224,0.35), rgba(37,43,49,1) 60%), #252b31;
         box-shadow: 0 8px 22px rgba(0,0,0,0.4);
-        transform: scale(1.02);
-        border-color: rgba(128,255,224,0.55);
+        border-color: rgba(128,255,224,0.6);
       }
       .nav-circle:active {
-        transform: scale(0.97);
+        transform: scale(0.96);
       }
       .nav-circle-label {
         position: absolute;
@@ -159,34 +165,116 @@
         pointer-events:none;
       }
 
-      main { flex: 1; }
+      main {
+        flex: 1;
+      }
 
       .lower-panel {
         background: rgba(19,22,27,0.7);
         border-top: 1px solid rgba(255,255,255,0.035);
         margin: 8px 0 68px;
         padding: 12px;
-        min-height: 200px;
+        min-height: 120px;
+        font-size: 12px;
+        color: rgba(255,255,255,0.7);
       }
 
-      /* viewごとのコンテナ */
-      .view-panel {
+      .bottom-nav {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 0;
+        width: min(100%, 440px);
+        background: rgba(0,0,0,0.85);
+        border-top: 1px solid rgba(255,255,255,0.08);
+        padding: 10px 18px 12px;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        z-index: 50;
+      }
+      .bottom-dot {
+        width: 42px;
+        height: 42px;
+        background: rgba(255,255,255,0.07);
+        border-radius: 999px;
+      }
+
+      /* === 機能画面オーバーレイ === */
+      .feature-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 60;
+        pointer-events: none;
+        opacity: 0;
+        transform: scale(0.85);
+        border-radius: 32px;
+        transform-origin: center;
+        transition:
+          opacity 0.18s ease-out,
+          transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1),
+          border-radius 0.22s ease-out;
+        background: radial-gradient(circle at 20% 0%, rgba(128,255,224,0.18), transparent 55%),
+                    #05070a;
+        display: flex;
+      }
+      .feature-overlay--active {
+        pointer-events: auto;
+        opacity: 1;
+        transform: scale(1);
+        border-radius: 0;
+      }
+
+      .feature-shell {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .feature-header {
+        padding: calc(env(safe-area-inset-top, 18px) + 6px) 12px 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .feature-back {
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(0,0,0,0.4);
+        color: #fff;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .feature-title {
+        font-size: 13px;
+        font-weight: 600;
+        opacity: 0.9;
+      }
+
+      .feature-main {
+        flex: 1;
+        padding: 8px 12px 72px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .feature-view {
         display: none;
         opacity: 0;
         transform: translateY(4px);
-        transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+        transition: opacity 0.16s ease-out, transform 0.16s ease-out;
       }
-      .view-panel--active {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
+      .feature-view--active {
+        display: block;
         opacity: 1;
         transform: translateY(0);
       }
 
       .sub-card {
-        background: rgba(2,3,4,0.25);
-        border: 1px solid rgba(255,255,255,0.02);
+        background: rgba(10,13,20,0.96);
+        border: 1px solid rgba(255,255,255,0.04);
         border-radius: 14px;
         padding: 10px 12px;
       }
@@ -211,30 +299,40 @@
         cursor: pointer;
       }
 
-      .bottom-nav {
-        position: fixed;
-        left: 50%;
-        transform: translateX(-50%);
-        bottom: 0;
-        width: min(100%, 440px);
-        background: rgba(0,0,0,0.85);
-        border-top: 1px solid rgba(255,255,255,0.08);
-        padding: 10px 18px 12px;
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        z-index: 50;
+      #gamesList {
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+        font-size:13px;
       }
-      .bottom-dot {
-        width: 42px;
-        height: 42px;
-        background: rgba(255,255,255,0.07);
-        border-radius: 999px;
+
+      #gamesList .game-card {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.04);
+        border-radius: 10px;
+        padding: 6px 8px;
+        cursor: pointer;
+      }
+
+      #stampSlots {
+        display:flex;
+        gap:8px;
+      }
+      #stampSlots > div {
+        width:58px;
+        height:58px;
+        border-radius:14px;
+        background:#3a3f46;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-size:11px;
       }
 
       @media (prefers-reduced-motion: reduce) {
         .nav-circle,
-        .view-panel {
+        .feature-overlay,
+        .feature-view {
           transition: none !important;
         }
       }
@@ -262,11 +360,11 @@
       </div>
 
       <div class="info-panel">
-        なにを表示するかは未定（ここは後で差し替え）
+        上の画像と下のボタンから、文化祭のミニゲームや情報にアクセスできる予定です。
       </div>
 
       <div class="nav-circles">
-        <div class="nav-circle nav-circle--active" data-view="games">
+        <div class="nav-circle" data-view="games">
           ミニ<br>ゲーム
           <div class="nav-circle-label">Games</div>
         </div>
@@ -281,47 +379,9 @@
       </div>
 
       <main>
-        <div class="lower-panel" id="lowerPanel">
-          <!-- Gamesビュー -->
-          <section class="view-panel" data-view-panel="games">
-            <div class="sub-card">
-              <div class="sub-card-title">ゲーム一覧</div>
-              <div id="gamesList"
-                   style="display:flex; flex-direction:column; gap:6px; font-size:13px;"></div>
-            </div>
-          </section>
-
-          <!-- Stampsビュー（スタンプ＋カウンタ） -->
-          <section class="view-panel" data-view-panel="stamps">
-            <div class="sub-card" id="stampArea">
-              <div class="sub-card-title">スタンプ取得テスト（仮配置）</div>
-              <div id="stampSlots" style="display:flex; gap:8px;">
-                <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s1">s1</div>
-                <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s2">s2</div>
-                <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s3">s3</div>
-              </div>
-            </div>
-
-            <div class="sub-card" id="counterArea">
-              <div class="sub-card-title">デバッグカウンタ（自動保存）</div>
-              <div class="debug-counter">
-                <span>Count: <strong id="counterValue">0</strong></span>
-                <button class="btn-sm" id="incBtn">＋1</button>
-                <button class="btn-sm" id="resetBtn">リセット</button>
-              </div>
-            </div>
-          </section>
-
-          <!-- Clubsビュー（プレースホルダ） -->
-          <section class="view-panel" data-view-panel="clubs">
-            <div class="sub-card">
-              <div class="sub-card-title">部展紹介（準備中）</div>
-              <div style="font-size:13px; opacity:.8;">
-                ここに各部活の展示紹介カードを並べる予定です。<br>
-                写真・説明・場所などを1枚ずつ表示します。
-              </div>
-            </div>
-          </section>
+        <div class="lower-panel">
+          下のボタンをタップすると、それぞれの機能画面が全画面で開きます。<br>
+          現在は「ミニゲーム一覧」「スタンプテスト」「部展紹介（プレースホルダ）」が実装されています。
         </div>
       </main>
 
@@ -330,6 +390,57 @@
         <div class="bottom-dot"></div>
         <div class="bottom-dot"></div>
         <div class="bottom-dot"></div>
+      </div>
+
+      <!-- 機能画面オーバーレイ -->
+      <div id="featureOverlay" class="feature-overlay">
+        <div class="feature-shell">
+          <div class="feature-header">
+            <button id="backBtn" class="feature-back">＜ メインに戻る</button>
+            <span id="featureTitle" class="feature-title">機能</span>
+          </div>
+          <div class="feature-main">
+            <!-- Games画面 -->
+            <section class="feature-view" data-screen="games">
+              <div class="sub-card">
+                <div class="sub-card-title">ミニゲーム一覧</div>
+                <div id="gamesList"></div>
+              </div>
+            </section>
+
+            <!-- Stamps画面 -->
+            <section class="feature-view" data-screen="stamps">
+              <div class="sub-card" id="stampArea">
+                <div class="sub-card-title">スタンプ取得テスト（仮配置）</div>
+                <div id="stampSlots">
+                  <div data-stamp="s1">s1</div>
+                  <div data-stamp="s2">s2</div>
+                  <div data-stamp="s3">s3</div>
+                </div>
+              </div>
+
+              <div class="sub-card" id="counterArea">
+                <div class="sub-card-title">デバッグカウンタ（自動保存）</div>
+                <div class="debug-counter">
+                  <span>Count: <strong id="counterValue">0</strong></span>
+                  <button class="btn-sm" id="incBtn">＋1</button>
+                  <button class="btn-sm" id="resetBtn">リセット</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- Clubs画面 -->
+            <section class="feature-view" data-screen="clubs">
+              <div class="sub-card">
+                <div class="sub-card-title">部展紹介（準備中）</div>
+                <div style="font-size:13px; opacity:.8;">
+                  ここに各部活の展示紹介カードを並べる予定です。<br>
+                  写真・説明・場所などを1枚ずつ表示します。
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
     </div>
 
