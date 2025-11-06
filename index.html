@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>文化祭ターミナル（ホーム）</title>
+    <title>文化祭ミニゲームターミナル｜ホーム</title>
 
     <style>
       :root {
@@ -18,7 +18,6 @@
         --bottom: #020202;
         --window-btn: #2a2f36;
       }
-
       * { box-sizing: border-box; }
 
       body {
@@ -31,17 +30,17 @@
         flex-direction: column;
       }
 
-      /* スマホ幅に寄せる（PCでもスマホ幅で中央表示） */
       .app-shell {
         width: min(100%, 440px);
         margin: 0 auto;
         min-height: 100vh;
         display: flex;
         flex-direction: column;
-        background: radial-gradient(circle at top, rgba(255,255,255,0.03), transparent 48%), var(--bg);
+        background:
+          radial-gradient(circle at top, rgba(255,255,255,0.03), transparent 48%),
+          var(--bg);
       }
 
-      /* ① 上部黒帯（スマホのUIが来る想定） */
       .top-safe {
         height: calc(env(safe-area-inset-top, 18px) + 8px);
         background: #000;
@@ -53,7 +52,6 @@
         color: rgba(255,255,255,0.55);
       }
 
-      /* ② サイト名 */
       .site-title {
         background: rgba(0,0,0,0.5);
         border: 1px solid rgba(255,255,255,0.1);
@@ -64,14 +62,12 @@
         font-size: 14px;
       }
 
-      /* ③ スライドショーエリア（比率固定） */
       .hero-area {
         margin: 6px 10px 4px;
         background: #fff;
         color: #000;
         border-radius: 6px;
         overflow: hidden;
-        /* 送ってくれた長辺が長い比率に寄せる。だいたい 900x400 くらいだったので 9:4 にする */
         aspect-ratio: 9 / 4;
         display: flex;
         align-items: center;
@@ -102,7 +98,6 @@
         border-radius: 99px;
       }
 
-      /* ④ 未定エリア（細長いパネル） */
       .info-panel {
         background: #242a33;
         border-radius: 20px;
@@ -115,7 +110,6 @@
         font-weight: 500;
       }
 
-      /* ⑤ 丸っぽいナビボタン（窓型） */
       .nav-circles {
         display: flex;
         gap: 10px;
@@ -126,7 +120,7 @@
         flex: 1 1 0;
         background: linear-gradient(160deg, #2b323a, #1b1f23);
         border: 1px solid rgba(255,255,255,0.04);
-        border-radius: 30px 30px 26px 26px; /* 完全な丸ではなく、ちょい柔らかい形 */
+        border-radius: 30px 30px 26px 26px;
         height: 96px;
         display: flex;
         align-items: center;
@@ -135,16 +129,23 @@
         font-size: 11px;
         position: relative;
         overflow: hidden;
+        cursor: pointer;
+        transition: transform 0.16s ease-out, box-shadow 0.16s ease-out, border-color 0.16s ease-out;
       }
       .nav-circle--active {
         background: radial-gradient(circle at 20% 10%, rgba(128,255,224,0.35), rgba(37,43,49,1) 60%), #252b31;
+        box-shadow: 0 8px 22px rgba(0,0,0,0.4);
+        transform: scale(1.02);
+        border-color: rgba(128,255,224,0.55);
+      }
+      .nav-circle:active {
+        transform: scale(0.97);
       }
       .nav-circle-label {
         position: absolute;
         bottom: -18px;
         left: 50%;
         transform: translateX(-50%);
-        background: transparent;
         padding-top: 22px;
         font-size: 11px;
         color: rgba(255,255,255,0.75);
@@ -158,17 +159,31 @@
         pointer-events:none;
       }
 
-      /* ⑥ メイン下部（デバッグ・仮配置ゾーン） */
+      main { flex: 1; }
+
       .lower-panel {
         background: rgba(19,22,27,0.7);
         border-top: 1px solid rgba(255,255,255,0.035);
         margin: 8px 0 68px;
         padding: 12px;
         min-height: 200px;
+      }
+
+      /* viewごとのコンテナ */
+      .view-panel {
+        display: none;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+      }
+      .view-panel--active {
         display: flex;
         flex-direction: column;
         gap: 12px;
+        opacity: 1;
+        transform: translateY(0);
       }
+
       .sub-card {
         background: rgba(2,3,4,0.25);
         border: 1px solid rgba(255,255,255,0.02);
@@ -181,7 +196,6 @@
         margin-bottom: 6px;
       }
 
-      /* デバッグカウンタ */
       .debug-counter {
         display: flex;
         align-items: center;
@@ -189,7 +203,7 @@
       }
       .btn-sm {
         background: rgba(255,255,255,0.03);
-        border: 1px solid rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.05);
         color: inherit;
         border-radius: 8px;
         padding: 5px 10px;
@@ -197,7 +211,6 @@
         cursor: pointer;
       }
 
-      /* ⑦ 下部黒帯ナビ（グレー丸4つ） */
       .bottom-nav {
         position: fixed;
         left: 50%;
@@ -219,9 +232,11 @@
         border-radius: 999px;
       }
 
-      /* スマホで余白が足りないときのスクロール */
-      main {
-        flex: 1;
+      @media (prefers-reduced-motion: reduce) {
+        .nav-circle,
+        .view-panel {
+          transition: none !important;
+        }
       }
     </style>
   </head>
@@ -231,12 +246,10 @@
         このあたりに各スマホの上部UIが表示されている想定
       </div>
 
-      <!-- サイト名 -->
       <div class="site-title">
         文化祭ミニゲームターミナル（仮）
       </div>
 
-      <!-- スライドショー領域（いまは静的） -->
       <div class="hero-area" id="heroArea">
         <div class="hero-inner">
           <div class="hero-title">画像が遷移する画面</div>
@@ -248,12 +261,10 @@
         <div class="hero-badge" id="heroBadge">1 / 4</div>
       </div>
 
-      <!-- 未定エリア（細長いパネル） -->
       <div class="info-panel">
         なにを表示するかは未定（ここは後で差し替え）
       </div>
 
-      <!-- 機能ナビボタン（丸っぽい窓型） -->
       <div class="nav-circles">
         <div class="nav-circle nav-circle--active" data-view="games">
           ミニ<br>ゲーム
@@ -269,36 +280,51 @@
         </div>
       </div>
 
-      <!-- 下部の仮配置ゾーン -->
       <main>
         <div class="lower-panel" id="lowerPanel">
-          <!-- ここに今あるスタンプ原型・デバッグをいったん入れておく -->
-          <div class="sub-card" id="stampArea">
-            <div class="sub-card-title">スタンプ取得テスト（仮配置）</div>
-            <div id="stampSlots" style="display:flex; gap:8px;">
-              <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s1">s1</div>
-              <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s2">s2</div>
-              <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s3">s3</div>
+          <!-- Gamesビュー -->
+          <section class="view-panel" data-view-panel="games">
+            <div class="sub-card">
+              <div class="sub-card-title">ゲーム一覧</div>
+              <div id="gamesList"
+                   style="display:flex; flex-direction:column; gap:6px; font-size:13px;"></div>
             </div>
-          </div>
+          </section>
 
-          <div class="sub-card" id="counterArea">
-            <div class="sub-card-title">デバッグカウンタ（自動保存）</div>
-            <div class="debug-counter">
-              <span>Count: <strong id="counterValue">0</strong></span>
-              <button class="btn-sm" id="incBtn">＋1</button>
-              <button class="btn-sm" id="resetBtn">リセット</button>
+          <!-- Stampsビュー（スタンプ＋カウンタ） -->
+          <section class="view-panel" data-view-panel="stamps">
+            <div class="sub-card" id="stampArea">
+              <div class="sub-card-title">スタンプ取得テスト（仮配置）</div>
+              <div id="stampSlots" style="display:flex; gap:8px;">
+                <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s1">s1</div>
+                <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s2">s2</div>
+                <div style="width:58px; height:58px; border-radius:14px; background:#3a3f46; display:flex; align-items:center; justify-content:center; font-size:11px;" data-stamp="s3">s3</div>
+              </div>
             </div>
-          </div>
 
-          <div class="sub-card">
-            <div class="sub-card-title">ゲーム一覧（プレースホルダ）</div>
-            <div id="gamesList" style="display:flex; flex-direction:column; gap:6px; font-size:13px;"></div>
-          </div>
+            <div class="sub-card" id="counterArea">
+              <div class="sub-card-title">デバッグカウンタ（自動保存）</div>
+              <div class="debug-counter">
+                <span>Count: <strong id="counterValue">0</strong></span>
+                <button class="btn-sm" id="incBtn">＋1</button>
+                <button class="btn-sm" id="resetBtn">リセット</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Clubsビュー（プレースホルダ） -->
+          <section class="view-panel" data-view-panel="clubs">
+            <div class="sub-card">
+              <div class="sub-card-title">部展紹介（準備中）</div>
+              <div style="font-size:13px; opacity:.8;">
+                ここに各部活の展示紹介カードを並べる予定です。<br>
+                写真・説明・場所などを1枚ずつ表示します。
+              </div>
+            </div>
+          </section>
         </div>
       </main>
 
-      <!-- 下の黒帯ナビ（まだダミー） -->
       <div class="bottom-nav">
         <div class="bottom-dot"></div>
         <div class="bottom-dot"></div>

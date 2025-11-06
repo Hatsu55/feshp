@@ -4,15 +4,12 @@
 // 0. 共通ベースURL（GitHub Pages対応）
 // =============================
 const base = import.meta.env.BASE_URL || "./"; // 例: /feshp/
-const absoluteBase = location.origin + base;
 
 // =============================
 // 1. スタンプまわり
 // =============================
-// 今回のHTMLでは #stampSlots の中に <div data-stamp="s1">... がある前提
 const STAMP_KEY = "fes:stamps:v1";
 
-// 3つ固定（前と同じID）
 const STAMP_DEFS = [
   { id: "s1", color: "#4ade80", label: "s1" },
   { id: "s2", color: "#60a5fa", label: "s2" },
@@ -65,7 +62,6 @@ function applyStampFromURL() {
   const id = p.get("stamp");
   if (!id) return null;
 
-  // 知らないIDは無視
   const known = STAMP_DEFS.some((s) => s.id === id);
   if (!known) return null;
 
@@ -74,8 +70,11 @@ function applyStampFromURL() {
   saveStamps([...current]);
   renderStampsDOM();
 
-  // URLをきれいに戻す
-  history.replaceState(null, "", location.pathname);
+  // URLをきれいに戻す（viewパラメータなどは残すかどうかは必要に応じて調整）
+  p.delete("stamp");
+  const q = p.toString();
+  const newUrl = q ? `${location.pathname}?${q}` : location.pathname;
+  history.replaceState(null, "", newUrl);
 
   return id;
 }
@@ -84,8 +83,6 @@ function applyStampFromURL() {
 function injectStampResetButton() {
   const area = document.getElementById("stampArea");
   if (!area) return;
-
-  // すでに作ってたら作らない
   if (area.querySelector(".stamp-reset-btn")) return;
 
   const btn = document.createElement("button");
@@ -242,23 +239,49 @@ function startHeroLoop() {
 }
 
 // =============================
-// 5. ナビボタン（丸のやつ）
+// 5. ビュー切り替え（Games / Stamps / Clubs）
 // =============================
+const VIEW_DEFAULT = "games";
+
+function getInitialView() {
+  const p = new URLSearchParams(location.search);
+  const v = p.get("view");
+  if (v === "games" || v === "stamps" || v === "clubs") return v;
+  return VIEW_DEFAULT;
+}
+
+function applyView(view) {
+  // navの見た目
+  const circles = document.querySelectorAll(".nav-circle");
+  circles.forEach((c) => {
+    const v = c.dataset.view;
+    if (v === view) c.classList.add("nav-circle--active");
+    else c.classList.remove("nav-circle--active");
+  });
+
+  // パネル表示
+  const panels = document.querySelectorAll(".view-panel");
+  panels.forEach((p) => {
+    const v = p.getAttribute("data-view-panel");
+    if (v === view) p.classList.add("view-panel--active");
+    else p.classList.remove("view-panel--active");
+  });
+
+  // URLにも反映（リロードはされない）
+  const params = new URLSearchParams(location.search);
+  params.set("view", view);
+  const q = params.toString();
+  const newUrl = q ? `${location.pathname}?${q}` : location.pathname;
+  history.replaceState(null, "", newUrl);
+}
+
 function setupNavCircles() {
   const circles = document.querySelectorAll(".nav-circle");
-  const lower = document.getElementById("lowerPanel");
   circles.forEach((c) => {
     c.addEventListener("click", () => {
-      circles.forEach((x) => x.classList.remove("nav-circle--active"));
-      c.classList.add("nav-circle--active");
-
       const view = c.dataset.view;
-      console.log("switch view ->", view);
-
-      // 今は全部同じパネルをとりあえず見せておく
-      if (lower) {
-        lower.style.display = "flex";
-      }
+      if (!view) return;
+      applyView(view);
     });
   });
 }
@@ -289,8 +312,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 2) スタンプ描画
   renderStampsDOM();
-
-  // 2.5) デバッグ用スタンプリセットボタンを生やす
   injectStampResetButton();
 
   // 3) カウンタ
@@ -309,8 +330,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 5) ヒーロー開始
   startHeroLoop();
 
-  // 6) ナビ
+  // 6) ビュー切り替え初期化
   setupNavCircles();
+  const initialView = getInitialView();
+  applyView(initialView);
 
   if (fromUrl) {
     console.log(`スタンプ「${fromUrl}」を取得しました`);
