@@ -13,7 +13,7 @@ export function setupGameTerminalUI(games, opts = {}) {
     return;
   }
 
-  // 画面の骨組みをJS側で構築
+  // 画面の骨組み
   screen.innerHTML = `
     <div class="terminal-root">
       <div class="terminal-header">どのゲームで遊びますか？</div>
@@ -37,37 +37,36 @@ export function setupGameTerminalUI(games, opts = {}) {
         display:flex;
         flex-direction:column;
         height:100%;
-        padding:4px 4px 8px;
+        padding:12px 6px 10px;
       }
       .terminal-header {
         font-size:13px;
         font-weight:600;
-        margin:4px 4px 8px;
+        margin:0 4px 10px;
         opacity:.9;
-        text-align:left;
       }
       .terminal-carousel {
         flex:1;
+        position:relative;
         display:flex;
         align-items:center;
         justify-content:center;
-        position:relative;
         overflow:visible;
         touch-action:pan-y;
-        /* カードを少し下寄せにするための高さと余白 */
-        height: 230px;
-        margin-top: 4px;
-        margin-bottom: 6px;
+        /* 少し下めに配置するために高さ＆余白を多めに */
+        min-height:260px;
+        margin-top:8px;
+        margin-bottom:12px;
       }
       .terminal-slide {
         position:absolute;
-        top:50%;
+        top:55%; /* 50% より少し下に */
         left:50%;
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
-        /* 幅を少し細めにして重なりを減らす */
-        width:62%;
-        max-width:230px;
+        /* 縦長に近づけるために幅を細くする */
+        width:54%;
+        max-width:210px;
         pointer-events:none;
       }
       .terminal-slide.is-center {
@@ -75,14 +74,14 @@ export function setupGameTerminalUI(games, opts = {}) {
       }
       .terminal-card {
         position:relative;
-        border-radius:24px;
-        padding:10px;
-        background:rgba(8,10,16,0.9);
+        border-radius:26px;
+        padding:12px;
+        background:rgba(8,10,16,0.92);
         box-shadow:0 12px 26px rgba(0,0,0,0.6);
         overflow:visible;
       }
       .terminal-card-frame {
-        border-radius:18px;
+        border-radius:20px;
         border:2px solid #fff;
         padding:8px;
         position:relative;
@@ -91,8 +90,9 @@ export function setupGameTerminalUI(games, opts = {}) {
       }
       .terminal-card-bg {
         width:100%;
-        height:130px;
-        border-radius:12px;
+        /* より縦長にする */
+        height:170px;
+        border-radius:16px;
         background:linear-gradient(135deg,#3b82f6,#22c55e);
         background-size:cover;
         background-position:center;
@@ -100,36 +100,37 @@ export function setupGameTerminalUI(games, opts = {}) {
       .terminal-card-char {
         position:absolute;
         right:8px;
-        bottom:20px;
-        width:42%;
+        bottom:24px;
+        width:44%;
         max-width:120px;
         pointer-events:none;
       }
       .terminal-card-title {
         position:absolute;
-        right:12px;
-        bottom:10px;
+        right:14px;
+        bottom:12px;
         font-size:11px;
         font-weight:600;
         color:#111;
-        background:rgba(255,255,255,0.86);
+        background:rgba(255,255,255,0.9);
         border-radius:999px;
-        padding:3px 7px;
+        padding:3px 9px;
+        white-space:nowrap;
       }
       .terminal-footer {
-        padding:8px 4px 0;
+        padding:0 4px 0;
         display:flex;
         justify-content:center;
       }
       .terminal-play-btn {
-        min-width:60%;
+        min-width:70%;
         border-radius:999px;
         border:1px solid rgba(255,255,255,0.3);
         background:linear-gradient(135deg,#22c55e,#0ea5e9);
         color:#fff;
         font-size:13px;
         font-weight:600;
-        padding:8px 16px;
+        padding:9px 18px;
         cursor:pointer;
         box-shadow:0 8px 18px rgba(0,0,0,0.55);
       }
@@ -137,7 +138,7 @@ export function setupGameTerminalUI(games, opts = {}) {
     document.head.appendChild(style);
   }
 
-  // スライド（クリップ）を生成
+  // スライド（クリップ）生成
   list.forEach((g, index) => {
     const slide = document.createElement("div");
     slide.className = "terminal-slide";
@@ -151,15 +152,12 @@ export function setupGameTerminalUI(games, opts = {}) {
 
     const bg = document.createElement("div");
     bg.className = "terminal-card-bg";
-    // games.json に cardBg が設定されていれば使う（なければグラデ）
     if (g.cardBg) {
       bg.style.backgroundImage = `url(${g.cardBg})`;
     }
-
     frame.appendChild(bg);
     card.appendChild(frame);
 
-    // キャラ画像：charImage があれば白枠から飛び出す感じで表示
     if (g.charImage) {
       const img = document.createElement("img");
       img.className = "terminal-card-char";
@@ -168,7 +166,6 @@ export function setupGameTerminalUI(games, opts = {}) {
       card.appendChild(img);
     }
 
-    // 右下の短文（ゲームタイトル）
     const title = document.createElement("div");
     title.className = "terminal-card-title";
     title.textContent = g.title || "";
@@ -185,7 +182,7 @@ export function setupGameTerminalUI(games, opts = {}) {
   function applyLayout(animate = true) {
     slideEls.forEach((el, i) => {
       const offset = i - current;
-      // 無限ループ用に「近い方のオフセット」を計算
+      // 無限ループ用に「一番近いオフセット」に丸める
       let wrappedOffset = offset;
       if (wrappedOffset > len / 2) wrappedOffset -= len;
       if (wrappedOffset < -len / 2) wrappedOffset += len;
@@ -202,7 +199,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       else el.classList.remove("is-center");
     });
 
-    // 背景切り替え（中央のゲームに応じて）
+    // 背景切り替え（中央ゲーム）
     if (overlay) {
       const g = list[current];
       if (g && g.bgImage) {
@@ -212,21 +209,19 @@ export function setupGameTerminalUI(games, opts = {}) {
         overlay.style.backgroundSize = "cover";
         overlay.style.backgroundPosition = "center";
       } else {
-        // 画像未設定時はグラデ背景
         overlay.style.backgroundImage =
           "radial-gradient(circle at 20% 0%, rgba(128,255,224,0.18), transparent 55%), linear-gradient(135deg,#020617,#0f172a)";
       }
     }
   }
 
-  // 1つ進む／戻る（無限ループ）
   function shift(delta) {
     if (!len) return;
     current = (current + delta + len) % len;
     applyLayout();
   }
 
-  // 初期表示
+  // 初期レイアウト
   applyLayout(false);
 
   // ===== スワイプ & クリック操作 =====
@@ -257,14 +252,12 @@ export function setupGameTerminalUI(games, opts = {}) {
     if (!pointerActive) return;
     pointerActive = false;
     const dx = lastX - startX;
-    const threshold = 40; // 超えたら1枚分スライド
+    const threshold = 40;
 
     if (dx > threshold) {
-      // 右にスワイプ → ひとつ前へ
-      shift(-1);
+      shift(-1);  // 右スワイプ → 1つ前
     } else if (dx < -threshold) {
-      // 左にスワイプ → ひとつ先へ
-      shift(1);
+      shift(1);   // 左スワイプ → 1つ次
     } else {
       applyLayout();
     }
@@ -275,14 +268,14 @@ export function setupGameTerminalUI(games, opts = {}) {
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerUp);
 
-  // PCデバッグ用：クリック位置が真ん中より右か左かでスライド（無限ループ）
+  // PCデバッグ用：クリック位置が真ん中より右か左かでスライド（ループ）
   carousel.addEventListener("click", (ev) => {
     const rect = carousel.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     if (ev.clientX > centerX) {
-      shift(1);   // 右側クリック → 次
+      shift(1);
     } else {
-      shift(-1);  // 左側クリック → 前
+      shift(-1);
     }
   });
 
@@ -293,7 +286,6 @@ export function setupGameTerminalUI(games, opts = {}) {
       if (!g) return;
       const path = (g.path || "").replace(/^\//, "");
       const url = base + path;
-      // ここで実際にゲームページに遷移
       window.location.href = url;
     });
   }
