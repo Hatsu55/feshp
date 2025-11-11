@@ -40,10 +40,11 @@ export function setupGameTerminalUI(games, opts = {}) {
         padding:12px 6px 10px;
       }
       .terminal-header {
-        font-size:13px;
+        font-size:14px;
         font-weight:600;
         margin:0 4px 10px;
         opacity:.9;
+        text-align:center;
       }
       .terminal-carousel {
         flex:1;
@@ -54,19 +55,19 @@ export function setupGameTerminalUI(games, opts = {}) {
         overflow:visible;
         touch-action:pan-y;
         /* 少し下めに配置するために高さ＆余白を多めに */
-        min-height:260px;
-        margin-top:8px;
-        margin-bottom:12px;
+        min-height:300px;
+        margin-top:12px;
+        margin-bottom:16px;
       }
       .terminal-slide {
         position:absolute;
-        top:55%; /* 50% より少し下に */
+        top:60%; /* 50% より少し下に */
         left:50%;
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
         /* 縦長に近づけるために幅を細くする */
-        width:54%;
-        max-width:210px;
+        width:70%;
+        max-width:260px;
         pointer-events:none;
       }
       .terminal-slide.is-center {
@@ -91,7 +92,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       .terminal-card-bg {
         width:100%;
         /* より縦長にする */
-        height:170px;
+        height:210px;
         border-radius:16px;
         background:linear-gradient(135deg,#3b82f6,#22c55e);
         background-size:cover;
@@ -118,7 +119,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         white-space:nowrap;
       }
       .terminal-footer {
-        padding:0 4px 0;
+        padding:4px 4px 12px;
         display:flex;
         justify-content:center;
       }
@@ -187,13 +188,18 @@ export function setupGameTerminalUI(games, opts = {}) {
       if (wrappedOffset > len / 2) wrappedOffset -= len;
       if (wrappedOffset < -len / 2) wrappedOffset += len;
 
-      const baseX = wrappedOffset * 70;   // 左右へのずらし量（％）
-      const scale = wrappedOffset === 0 ? 1 : 0.8;
-      const opacity = wrappedOffset === 0 ? 1 : 0.35;
+        // 左右へのずらし量を少し大きくして、左右のカードは画面端に少しだけ見える程度に
+        const baseX = wrappedOffset * 95;   // 70 → 95 に拡大
 
-      el.style.transitionDuration = animate ? ".28s" : "0s";
-      el.style.transform = `translate(calc(-50% + ${baseX}%), -50%) scale(${scale})`;
-      el.style.opacity = String(opacity);
+        // 奥行き感をなくす：常に同じスケール
+        const scale = 1;
+        const opacity = wrappedOffset === 0 ? 1 : 0.35;
+
+        el.style.transitionDuration = animate ? ".28s" : "0s";
+        // scaleは 1 固定だが、他に影響が出ないようそのまま式に残す
+        el.style.transform = `translate(calc(-50% + ${baseX}%), -50%) scale(${scale})`;
+        el.style.opacity = String(opacity);
+
 
       if (wrappedOffset === 0) el.classList.add("is-center");
       else el.classList.remove("is-center");
