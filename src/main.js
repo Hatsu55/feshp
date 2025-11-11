@@ -1,5 +1,7 @@
 // src/main.js
 
+import { setupGameTerminalUI } from "./gameTerminalAdmin.js";
+
 // =============================
 // 0. 共通ベースURL（GitHub Pages対応）
 // =============================
@@ -163,6 +165,7 @@ async function loadGames() {
   return data.games ?? [];
 }
 
+// 旧リスト表示用（今は使っていないが残しておく）
 function renderGames(list) {
   const wrap = document.getElementById("gamesList");
   if (!wrap) return;
@@ -174,7 +177,9 @@ function renderGames(list) {
   list.forEach((g) => {
     const card = document.createElement("div");
     card.className = "game-card";
-    card.innerHTML = `<strong>${escapeHtml(g.title)}</strong><br><span style="opacity:.65">${escapeHtml(g.desc || "")}</span>`;
+    card.innerHTML = `<strong>${escapeHtml(g.title)}</strong><br><span style="opacity:.65">${escapeHtml(
+      g.desc || "",
+    )}</span>`;
     card.addEventListener("click", () => {
       alert(`「${g.title}」を起動する処理をここに入れます（後で）`);
     });
@@ -354,7 +359,7 @@ function escapeHtml(s) {
         ">": "&gt;",
         '"': "&quot;",
         "'": "&#39;",
-      }[m])
+      }[m]),
   );
 }
 
@@ -372,10 +377,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 3) カウンタ
   setupCounterUI();
 
-  // 4) ゲーム一覧
+  // 4) ゲーム一覧 → ミニゲームターミナルUIに差し替え
   try {
     const games = await loadGames();
-    renderGames(games);
+    setupGameTerminalUI(games, { base });
   } catch (e) {
     console.warn(e);
     const wrap = document.getElementById("gamesList");
