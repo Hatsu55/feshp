@@ -66,8 +66,8 @@ export function setupGameTerminalUI(games, opts = {}) {
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
         /* 縦長に近づけるために幅を細くする */
-        width:55%;
-        max-width:280px;
+        width:90%;
+        max-width:460px;
         pointer-events:none;
       }
       .terminal-slide.is-center {
@@ -119,7 +119,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         white-space:nowrap;
       }
       .terminal-footer {
-        padding:20px 4px 12px;
+        padding:50px 4px 12px;
         display:flex;
         justify-content:center;
       }
@@ -189,7 +189,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       if (wrappedOffset < -len / 2) wrappedOffset += len;
 
         // 左右へのずらし量を少し大きくして、左右のカードは画面端に少しだけ見える程度に
-        const baseX = wrappedOffset * 110;   // 70 → 95 に拡大
+        const baseX = wrappedOffset * 100;   // 70 → 95 に拡大
 
         // 奥行き感をなくす：常に同じスケール
         const scale = 1;
