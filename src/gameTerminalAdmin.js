@@ -40,7 +40,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         padding:12px 6px 10px;
       }
       .terminal-header {
-        font-size:14px;
+        font-size:16px;
         font-weight:600;
         margin:0 4px 10px;
         opacity:.9;
@@ -61,13 +61,13 @@ export function setupGameTerminalUI(games, opts = {}) {
       }
       .terminal-slide {
         position:absolute;
-        top:60%; /* 50% より少し下に */
+        top:65%; /* 50% より少し下に */
         left:50%;
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
         /* 縦長に近づけるために幅を細くする */
-        width:70%;
-        max-width:260px;
+        width:85%;
+        max-width:300px;
         pointer-events:none;
       }
       .terminal-slide.is-center {
@@ -92,7 +92,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       .terminal-card-bg {
         width:100%;
         /* より縦長にする */
-        height:210px;
+        height:230px;
         border-radius:16px;
         background:linear-gradient(135deg,#3b82f6,#22c55e);
         background-size:cover;
@@ -119,7 +119,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         white-space:nowrap;
       }
       .terminal-footer {
-        padding:4px 4px 12px;
+        padding:8px 8px 20px;
         display:flex;
         justify-content:center;
       }
