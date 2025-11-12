@@ -66,7 +66,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
         /* 縦長に近づけるために幅を細くする */
-        width:80%;
+        width:85%;
         max-width:460px;
         pointer-events:none;
       }
