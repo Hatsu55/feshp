@@ -33,16 +33,20 @@ export function setupGameTerminalUI(games, opts = {}) {
     const style = document.createElement("style");
     style.id = "terminalStyles";
     style.textContent = `
+      /* --- この画面ではブラウザのオーバースクロールを抑止 --- */
+      .feature-view[data-screen="games"] { overscroll-behavior: none; }
       .terminal-root {
         display:flex;
         flex-direction:column;
         height:100%;
         padding:24px 6px 10px;
+        overscroll-behavior: none; /* 画面内の慣性スクロール連鎖を止める */
+        overflow:hidden;           /* 画面内の縦スクロールを封じる */
       }
       .terminal-header {
         font-size:20px;
         font-weight:600;
-        margin:20 4px 10px;
+        margin:20 4px 10px; /* ユーザー指定の値を維持 */
         opacity:.9;
         text-align:center;
       }
@@ -53,7 +57,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         align-items:center;
         justify-content:center;
         overflow:visible;
-        touch-action:pan-x;
+        touch-action:pan-x; /* 横スワイプのみ許可（縦スクロール禁止） */
         /* 少し下めに配置するために高さ＆余白を多めに */
         min-height:330px;
         margin-top:12px;
@@ -61,18 +65,16 @@ export function setupGameTerminalUI(games, opts = {}) {
       }
       .terminal-slide {
         position:absolute;
-        top:65%; /* 50% より少し下に */
+        top:65%; /* ユーザー指定の値を維持 */
         left:50%;
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
-        /* 縦長に近づけるために幅を細くする */
-        width:70%;
-        max-width:460px;
+        width:70%;         /* ユーザー指定の値を維持 */
+        max-width:460px;   /* ユーザー指定の値を維持 */
         pointer-events:none;
       }
-      .terminal-slide.is-center {
-        pointer-events:auto;
-      }
+      .terminal-slide.is-center { pointer-events:auto; }
+
       .terminal-card {
         position:relative;
         border-radius:26px;
@@ -91,8 +93,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       }
       .terminal-card-bg {
         width:100%;
-        /* より縦長にする */
-        height:300px;
+        height:300px; /* ユーザー指定の値を維持（縦長） */
         border-radius:16px;
         background:linear-gradient(135deg,#3b82f6,#22c55e);
         background-size:cover;
@@ -119,7 +120,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         white-space:nowrap;
       }
       .terminal-footer {
-        padding:100px 4px 12px;
+        padding:100px 4px 12px; /* ユーザー指定の値を維持（下寄せ） */
         display:flex;
         justify-content:center;
       }
@@ -188,18 +189,14 @@ export function setupGameTerminalUI(games, opts = {}) {
       if (wrappedOffset > len / 2) wrappedOffset -= len;
       if (wrappedOffset < -len / 2) wrappedOffset += len;
 
-        // 左右へのずらし量を少し大きくして、左右のカードは画面端に少しだけ見える程度に
-        const baseX = wrappedOffset * 100;   // 70 → 95 に拡大
+      // 平面スライド：大小・奥行きなし
+      const baseX = wrappedOffset * 100; // ユーザー調整値を維持（左右の見え幅）
+      const scale = 1;
+      const opacity = wrappedOffset === 0 ? 1 : 0.35;
 
-        // 奥行き感をなくす：常に同じスケール
-        const scale = 1;
-        const opacity = wrappedOffset === 0 ? 1 : 0.35;
-
-        el.style.transitionDuration = animate ? ".28s" : "0s";
-        // scaleは 1 固定だが、他に影響が出ないようそのまま式に残す
-        el.style.transform = `translate(calc(-50% + ${baseX}%), -50%) scale(${scale})`;
-        el.style.opacity = String(opacity);
-
+      el.style.transitionDuration = animate ? ".28s" : "0s";
+      el.style.transform = `translate(calc(-50% + ${baseX}%), -50%) scale(${scale})`;
+      el.style.opacity = String(opacity);
 
       if (wrappedOffset === 0) el.classList.add("is-center");
       else el.classList.remove("is-center");
@@ -230,10 +227,20 @@ export function setupGameTerminalUI(games, opts = {}) {
   // 初期レイアウト
   applyLayout(false);
 
-  // ===== スワイプ & クリック操作 =====
+  // ===== スワイプ & クリック操作（縦スクロール完全抑止を含む） =====
   let pointerActive = false;
   let startX = 0;
   let lastX = 0;
+
+  // bodyスクロール一時ロック用
+  let bodyOverflowBackup = "";
+  const lockBodyScroll = () => {
+    bodyOverflowBackup = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  };
+  const unlockBodyScroll = () => {
+    document.body.style.overflow = bodyOverflowBackup || "";
+  };
 
   function onPointerDown(ev) {
     pointerActive = true;
@@ -243,6 +250,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       0;
     startX = x;
     lastX = x;
+    lockBodyScroll(); // ← ドラッグ開始時にページ縦スクロールをロック
   }
 
   function onPointerMove(ev) {
@@ -267,6 +275,12 @@ export function setupGameTerminalUI(games, opts = {}) {
     } else {
       applyLayout();
     }
+    unlockBodyScroll(); // ← ドラッグ終了でロック解除
+  }
+
+  // iOS保険：タッチ移動中は既定スクロールを止める（passive:false が重要）
+  function onTouchMoveStopper(e) {
+    if (pointerActive) e.preventDefault();
   }
 
   carousel.addEventListener("pointerdown", onPointerDown);
@@ -274,15 +288,15 @@ export function setupGameTerminalUI(games, opts = {}) {
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerUp);
 
+  // タッチ専用の保険
+  carousel.addEventListener("touchmove", onTouchMoveStopper, { passive: false });
+
   // PCデバッグ用：クリック位置が真ん中より右か左かでスライド（ループ）
   carousel.addEventListener("click", (ev) => {
     const rect = carousel.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
-    if (ev.clientX > centerX) {
-      shift(1);
-    } else {
-      shift(-1);
-    }
+    if (ev.clientX > centerX) shift(1);
+    else shift(-1);
   });
 
   // 「このゲームで遊ぶ」ボタン
