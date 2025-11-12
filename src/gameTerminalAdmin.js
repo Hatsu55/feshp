@@ -119,7 +119,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         white-space:nowrap;
       }
       .terminal-footer {
-        padding:4px 4px 40px;
+        padding:20px 4px 12px;
         display:flex;
         justify-content:center;
       }
