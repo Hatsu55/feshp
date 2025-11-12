@@ -66,7 +66,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
         /* 縦長に近づけるために幅を細くする */
-        width:85%;
+        width:70%;
         max-width:460px;
         pointer-events:none;
       }
@@ -92,7 +92,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       .terminal-card-bg {
         width:100%;
         /* より縦長にする */
-        height:370px;
+        height:300px;
         border-radius:16px;
         background:linear-gradient(135deg,#3b82f6,#22c55e);
         background-size:cover;
