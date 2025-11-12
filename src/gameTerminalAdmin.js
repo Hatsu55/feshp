@@ -55,19 +55,19 @@ export function setupGameTerminalUI(games, opts = {}) {
         overflow:visible;
         touch-action:pan-y;
         /* 少し下めに配置するために高さ＆余白を多めに */
-        min-height:300px;
+        min-height:360px;
         margin-top:12px;
         margin-bottom:16px;
       }
       .terminal-slide {
         position:absolute;
-        top:65%; /* 50% より少し下に */
+        top:70%; /* 50% より少し下に */
         left:50%;
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
         /* 縦長に近づけるために幅を細くする */
-        width:85%;
-        max-width:300px;
+        width:40%;
+        max-width:280px;
         pointer-events:none;
       }
       .terminal-slide.is-center {
@@ -92,7 +92,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       .terminal-card-bg {
         width:100%;
         /* より縦長にする */
-        height:230px;
+        height:260px;
         border-radius:16px;
         background:linear-gradient(135deg,#3b82f6,#22c55e);
         background-size:cover;
@@ -119,7 +119,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         white-space:nowrap;
       }
       .terminal-footer {
-        padding:8px 8px 20px;
+        padding:10px 10px 30px;
         display:flex;
         justify-content:center;
       }
@@ -189,7 +189,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       if (wrappedOffset < -len / 2) wrappedOffset += len;
 
         // 左右へのずらし量を少し大きくして、左右のカードは画面端に少しだけ見える程度に
-        const baseX = wrappedOffset * 95;   // 70 → 95 に拡大
+        const baseX = wrappedOffset * 110;   // 70 → 95 に拡大
 
         // 奥行き感をなくす：常に同じスケール
         const scale = 1;
