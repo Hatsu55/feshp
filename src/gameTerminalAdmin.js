@@ -66,7 +66,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
         /* 縦長に近づけるために幅を細くする */
-        width:40%;
+        width:55%;
         max-width:280px;
         pointer-events:none;
       }
@@ -119,7 +119,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         white-space:nowrap;
       }
       .terminal-footer {
-        padding:10px 10px 30px;
+        padding:15px 15px 45px;
         display:flex;
         justify-content:center;
       }
