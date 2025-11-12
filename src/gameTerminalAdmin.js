@@ -66,8 +66,8 @@ export function setupGameTerminalUI(games, opts = {}) {
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
         /* 縦長に近づけるために幅を細くする */
-        width:90%;
-        max-width:460px;
+        width:55%;
+        max-width:420px;
         pointer-events:none;
       }
       .terminal-slide.is-center {
