@@ -53,7 +53,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         align-items:center;
         justify-content:center;
         overflow:visible;
-        touch-action:pan-y;
+        touch-action:pan-x;
         /* 少し下めに配置するために高さ＆余白を多めに */
         min-height:330px;
         margin-top:12px;
