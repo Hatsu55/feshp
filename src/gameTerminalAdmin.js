@@ -40,7 +40,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         padding:12px 6px 10px;
       }
       .terminal-header {
-        font-size:16px;
+        font-size:20px;
         font-weight:600;
         margin:0 4px 10px;
         opacity:.9;
@@ -55,7 +55,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         overflow:visible;
         touch-action:pan-y;
         /* 少し下めに配置するために高さ＆余白を多めに */
-        min-height:360px;
+        min-height:330px;
         margin-top:12px;
         margin-bottom:16px;
       }
@@ -119,7 +119,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         white-space:nowrap;
       }
       .terminal-footer {
-        padding:15px 15px 45px;
+        padding:4px 4px 40px;
         display:flex;
         justify-content:center;
       }
