@@ -61,7 +61,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       }
       .terminal-slide {
         position:absolute;
-        top:70%; /* 50% より少し下に */
+        top:65%; /* 50% より少し下に */
         left:50%;
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
