@@ -13,7 +13,86 @@ export function setupGameTerminalUI(games, opts = {}) {
     return;
   }
 
-  // 画面の骨組み
+  // ===== スクロールロック（強化版） =====
+  // ・iOS含め確実に縦スクロールを止める
+  // ・スクロールバーも非表示
+  let __lockApplied = false;
+  let __scrollY = 0;
+  let __wheelHandler = null;
+  let __touchHandler = null;
+  let __keydownHandler = null;
+
+  function applyGlobalScrollLock() {
+    if (__lockApplied) return;
+    __lockApplied = true;
+
+    // 現在のスクロール位置を保持
+    __scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+
+    // body固定（ページ全体のスクロールを物理的に止める）
+    // これがもっとも効きます（iOS含む）
+    const body = document.body;
+    body.style.position = "fixed";
+    body.style.top = `-${__scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+
+    // スクロールバー非表示（各ブラウザ）
+    document.documentElement.classList.add("fes-scrollbar-hide");
+    body.classList.add("fes-scrollbar-hide");
+
+    // touchmove / wheel をグローバルに阻止（iOS対応には passive:false が重要）
+    const noscroll = (e) => e.preventDefault();
+    __wheelHandler = (e) => {
+      // 横スクロールしたいケースでも、ここでは完全ブロックが要件
+      e.preventDefault();
+    };
+    __touchHandler = (e) => {
+      e.preventDefault();
+    };
+    __keydownHandler = (e) => {
+      // キー操作によるスクロールをブロック（Space / PgUp/Down / Home/End / Arrow）
+      const keys = [" ", "PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+      if (keys.includes(e.key)) e.preventDefault();
+    };
+
+    document.addEventListener("wheel", __wheelHandler, { passive: false, capture: true });
+    document.addEventListener("touchmove", __touchHandler, { passive: false, capture: true });
+    document.addEventListener("keydown", __keydownHandler, { passive: false, capture: true });
+  }
+
+  function releaseGlobalScrollLock() {
+    if (!__lockApplied) return;
+    __lockApplied = false;
+
+    // リスナー解除
+    if (__wheelHandler) document.removeEventListener("wheel", __wheelHandler, { capture: true });
+    if (__touchHandler) document.removeEventListener("touchmove", __touchHandler, { capture: true });
+    if (__keydownHandler) document.removeEventListener("keydown", __keydownHandler, { capture: true });
+    __wheelHandler = __touchHandler = __keydownHandler = null;
+
+    // スクロールバー表示を戻す
+    document.documentElement.classList.remove("fes-scrollbar-hide");
+    document.body.classList.remove("fes-scrollbar-hide");
+
+    // body固定解除＆元の位置へ戻す
+    const body = document.body;
+    body.style.position = "";
+    body.style.top = "";
+    body.style.left = "";
+    body.style.right = "";
+    body.style.width = "";
+    window.scrollTo(0, __scrollY || 0);
+  }
+
+  // 画面に入ったらロック（この機能画面中は上下に動かない要件）
+  applyGlobalScrollLock();
+
+  // 他画面へ戻った時に解除できるよう、念のためグローバル関数も用意
+  window.__fes_unlock_scroll = releaseGlobalScrollLock;
+
+  // ====== 画面の骨組み ======
   screen.innerHTML = `
     <div class="terminal-root">
       <div class="terminal-header">どのゲームで遊びますか？</div>
@@ -28,25 +107,32 @@ export function setupGameTerminalUI(games, opts = {}) {
   const playBtn = screen.querySelector("#terminalPlayBtn");
   const overlay = document.getElementById("featureOverlay");
 
-  // 必要なスタイルを1回だけ注入
+  // ===== スタイル注入（あなたの最新数値を維持）=====
   if (!document.getElementById("terminalStyles")) {
     const style = document.createElement("style");
     style.id = "terminalStyles";
     style.textContent = `
-      /* --- この画面ではブラウザのオーバースクロールを抑止 --- */
+      /* スクロールバー非表示（ロック中に付与するクラス） */
+      .fes-scrollbar-hide {
+        scrollbar-width: none;          /* Firefox */
+        -ms-overflow-style: none;       /* IE/Edge */
+      }
+      .fes-scrollbar-hide::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+
+      /* この画面でのオーバースクロール抑止 */
       .feature-view[data-screen="games"] { overscroll-behavior: none; }
+
       .terminal-root {
         display:flex;
         flex-direction:column;
         height:100%;
         padding:24px 6px 10px;
-        overscroll-behavior: none; /* 画面内の慣性スクロール連鎖を止める */
-        overflow:hidden;           /* 画面内の縦スクロールを封じる */
+        overscroll-behavior: none;
       }
       .terminal-header {
-        font-size:20px;
+        font-size:20px;        /* 維持 */
         font-weight:600;
-        margin:20 4px 10px; /* ユーザー指定の値を維持 */
+        margin:20 4px 10px;    /* 維持（記法上は '20px 4px 10px' 推奨だが値はそのまま） */
         opacity:.9;
         text-align:center;
       }
@@ -57,20 +143,19 @@ export function setupGameTerminalUI(games, opts = {}) {
         align-items:center;
         justify-content:center;
         overflow:visible;
-        touch-action:pan-x; /* 横スワイプのみ許可（縦スクロール禁止） */
-        /* 少し下めに配置するために高さ＆余白を多めに */
-        min-height:330px;
-        margin-top:12px;
-        margin-bottom:16px;
+        touch-action: pan-x; /* 横スワイプのみ許可（縦禁止） */
+        min-height:330px;    /* 維持 */
+        margin-top:12px;     /* 維持 */
+        margin-bottom:16px;  /* 維持 */
       }
       .terminal-slide {
         position:absolute;
-        top:65%; /* ユーザー指定の値を維持 */
+        top:65%;             /* 維持 */
         left:50%;
         transform:translate(-50%,-50%);
         transition:transform .28s ease-out, opacity .28s ease-out;
-        width:70%;         /* ユーザー指定の値を維持 */
-        max-width:460px;   /* ユーザー指定の値を維持 */
+        width:70%;           /* 維持 */
+        max-width:460px;     /* 維持 */
         pointer-events:none;
       }
       .terminal-slide.is-center { pointer-events:auto; }
@@ -93,7 +178,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       }
       .terminal-card-bg {
         width:100%;
-        height:300px; /* ユーザー指定の値を維持（縦長） */
+        height:300px;        /* 維持（縦長） */
         border-radius:16px;
         background:linear-gradient(135deg,#3b82f6,#22c55e);
         background-size:cover;
@@ -120,7 +205,7 @@ export function setupGameTerminalUI(games, opts = {}) {
         white-space:nowrap;
       }
       .terminal-footer {
-        padding:100px 4px 12px; /* ユーザー指定の値を維持（下寄せ） */
+        padding:100px 4px 12px; /* 維持（ボタンを下へ） */
         display:flex;
         justify-content:center;
       }
@@ -140,7 +225,7 @@ export function setupGameTerminalUI(games, opts = {}) {
     document.head.appendChild(style);
   }
 
-  // スライド（クリップ）生成
+  // ===== スライド（クリップ）生成 =====
   list.forEach((g, index) => {
     const slide = document.createElement("div");
     slide.className = "terminal-slide";
@@ -189,8 +274,8 @@ export function setupGameTerminalUI(games, opts = {}) {
       if (wrappedOffset > len / 2) wrappedOffset -= len;
       if (wrappedOffset < -len / 2) wrappedOffset += len;
 
-      // 平面スライド：大小・奥行きなし
-      const baseX = wrappedOffset * 100; // ユーザー調整値を維持（左右の見え幅）
+      // 平面スライド：奥行き・縮尺なし（あなたの調整値を維持）
+      const baseX = wrappedOffset * 100; // 維持
       const scale = 1;
       const opacity = wrappedOffset === 0 ? 1 : 0.35;
 
@@ -227,20 +312,10 @@ export function setupGameTerminalUI(games, opts = {}) {
   // 初期レイアウト
   applyLayout(false);
 
-  // ===== スワイプ & クリック操作（縦スクロール完全抑止を含む） =====
+  // ===== スワイプ & クリック操作 =====
   let pointerActive = false;
   let startX = 0;
   let lastX = 0;
-
-  // bodyスクロール一時ロック用
-  let bodyOverflowBackup = "";
-  const lockBodyScroll = () => {
-    bodyOverflowBackup = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-  };
-  const unlockBodyScroll = () => {
-    document.body.style.overflow = bodyOverflowBackup || "";
-  };
 
   function onPointerDown(ev) {
     pointerActive = true;
@@ -250,7 +325,6 @@ export function setupGameTerminalUI(games, opts = {}) {
       0;
     startX = x;
     lastX = x;
-    lockBodyScroll(); // ← ドラッグ開始時にページ縦スクロールをロック
   }
 
   function onPointerMove(ev) {
@@ -275,12 +349,6 @@ export function setupGameTerminalUI(games, opts = {}) {
     } else {
       applyLayout();
     }
-    unlockBodyScroll(); // ← ドラッグ終了でロック解除
-  }
-
-  // iOS保険：タッチ移動中は既定スクロールを止める（passive:false が重要）
-  function onTouchMoveStopper(e) {
-    if (pointerActive) e.preventDefault();
   }
 
   carousel.addEventListener("pointerdown", onPointerDown);
@@ -288,8 +356,10 @@ export function setupGameTerminalUI(games, opts = {}) {
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerUp);
 
-  // タッチ専用の保険
-  carousel.addEventListener("touchmove", onTouchMoveStopper, { passive: false });
+  // iOS等の保険：タッチ移動を常に抑止（横スワイプ以外のスクロールを防ぐ）
+  carousel.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+  }, { passive: false });
 
   // PCデバッグ用：クリック位置が真ん中より右か左かでスライド（ループ）
   carousel.addEventListener("click", (ev) => {
