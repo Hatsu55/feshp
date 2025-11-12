@@ -92,7 +92,7 @@ export function setupGameTerminalUI(games, opts = {}) {
       .terminal-card-bg {
         width:100%;
         /* より縦長にする */
-        height:260px;
+        height:300px;
         border-radius:16px;
         background:linear-gradient(135deg,#3b82f6,#22c55e);
         background-size:cover;
